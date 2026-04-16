@@ -5,11 +5,11 @@ async function askAI() {
     let text = input.value.trim();
     if (!text) return;
 
-    // Tampilkan pesan kamu di layar
+    // Tampilkan pesan kamu
     chat.innerHTML += `<p style="margin-bottom: 10px;"><b>Kamu:</b> ${text}</p>`;
     input.value = "";
 
-    // Scroll ke bawah otomatis
+    // Scroll otomatis ke bawah
     chat.scrollTop = chat.scrollHeight;
 
     try {
@@ -22,22 +22,20 @@ async function askAI() {
         });
 
         let data = await res.json();
-        console.log("Respon Gemini:", data);
 
-        // Cek apakah ada jawaban dari Gemini
+        // Cek struktur data Gemini: candidates -> content -> parts -> text
         if (data && data.candidates && data.candidates[0].content) {
             let aiText = data.candidates[0].content.parts[0].text;
             chat.innerHTML += `<p style="margin-bottom: 10px;"><b>AI:</b> ${aiText}</p>`;
         } else {
-            // Jika API Key bermasalah atau limit habis
-            let errorMsg = data.error ? data.error.message : "Gagal mendapatkan respon dari AI.";
-            chat.innerHTML += `<p style="color: red; margin-bottom: 10px;"><b>AI:</b> Error: ${errorMsg}</p>`;
+            // Tampilkan pesan error jika ada masalah API
+            let errorDetail = data.error ? data.error.message : "Gagal memproses jawaban.";
+            chat.innerHTML += `<p style="color: red; margin-bottom: 10px;"><b>AI Error:</b> ${errorDetail}</p>`;
         }
     } catch (err) {
-        console.error(err);
-        chat.innerHTML += `<p style="color: red; margin-bottom: 10px;"><b>AI:</b> Terjadi kesalahan teknis.</p>`;
+        chat.innerHTML += `<p style="color: red; margin-bottom: 10px;"><b>AI Error:</b> Masalah koneksi backend.</p>`;
     }
 
-    // Scroll ke bawah lagi setelah AI jawab
+    // Scroll otomatis lagi setelah AI jawab
     chat.scrollTop = chat.scrollHeight;
 }
