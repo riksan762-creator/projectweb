@@ -1,171 +1,275 @@
-<!DOCTYPE html><html lang="id">
+<!DOCTYPE html>
+<html lang="id">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SawargiPay Premium</title>  <!-- Font -->  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">  <style>
-    *{margin:0;padding:0;box-sizing:border-box}
-    body{font-family:'Poppins',sans-serif;background:#0b1220;color:#fff}
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LETAL 777</title>
 
-    header{
-      position:fixed;
-      width:100%;
-      top:0;
-      background:rgba(0,0,0,0.7);
-      backdrop-filter:blur(10px);
-      display:flex;
-      justify-content:space-between;
-      padding:15px 30px;
-      z-index:1000;
-    }
+<style>
+*{
+  margin:0;padding:0;box-sizing:border-box;
+  font-family:Arial,Helvetica,sans-serif
+}
+body{
+  background:#000;color:#fff;
+  display:flex;justify-content:center
+}
+.app{
+  width:100%;max-width:430px;
+  background:radial-gradient(circle at top,#0f4d2c,#000);
+}
 
-    header h1{color:#38bdf8}
-    nav a{color:#fff;margin-left:15px;font-size:14px}
+/* ===== TOP BAR ===== */
+.topbar{
+  background:#f2f2f2;color:#000;
+  display:flex;justify-content:space-between;align-items:center;
+  padding:8px 10px;font-size:14px
+}
+.top-left{
+  display:flex;align-items:center;gap:8px
+}
+.icon{
+  width:30px;height:30px;border-radius:50%;
+  background:radial-gradient(circle,#00ff99,#009966);
+  display:flex;align-items:center;justify-content:center;
+  font-weight:900;color:#000;
+  box-shadow:0 0 10px rgba(0,255,153,.8)
+}
+.download{
+  background:#26a69a;color:#fff;border:none;
+  padding:6px 14px;border-radius:8px;
+  font-weight:bold
+}
 
-    .hero{
-      height:100vh;
-      display:flex;
-      flex-direction:column;
-      justify-content:center;
-      align-items:center;
-      text-align:center;
-      padding:20px;
-      background:linear-gradient(135deg,#0f172a,#020617);
-    }
+/* ===== HEADER ===== */
+.header{
+  position:relative;padding:14px 12px
+}
+.logo{
+  font-size:30px;font-weight:900;
+  color:#ffd700;
+  text-shadow:0 0 12px #00ff99
+}
+.livechat{
+  position:absolute;right:12px;top:12px;
+  background:linear-gradient(#ffb300,#e65100);
+  padding:6px 16px;border-radius:20px;
+  font-size:13px;font-weight:bold;
+  box-shadow:0 0 10px rgba(255,152,0,.7)
+}
 
-    .hero h2{font-size:40px;margin-bottom:10px}
-    .hero p{opacity:0.7}
+/* ===== SLIDER (NO BLINK) ===== */
+.slider{
+  margin:10px;
+  border-radius:16px;
+  overflow:hidden;
+  position:relative;
+  height:210px;
+  background:#000
+}
+.slide{
+  position:absolute;
+  inset:0;
+  opacity:0;
+  transition:opacity .8s ease-in-out;
+}
+.slide.active{
+  opacity:1;
+  z-index:1
+}
+.slide img{
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  display:block
+}
 
-    .btn{
-      display:inline-block;
-      margin-top:20px;
-      padding:12px 25px;
-      background:#38bdf8;
-      color:#000;
-      border-radius:25px;
-      font-weight:bold;
-      transition:0.3s;
-    }
+/* ===== CTA ===== */
+.cta{
+  margin:10px;
+  background:linear-gradient(#1aff6a,#0c8a3d);
+  padding:14px;
+  border-radius:14px;
+  text-align:center;
+  font-weight:900;
+  color:#000;
+  box-shadow:0 0 15px rgba(0,255,153,.6)
+}
 
-    .btn:hover{transform:scale(1.05)}
+/* ===== LOGIN ===== */
+.login{padding:14px}
+.login p{text-align:center;margin-bottom:10px}
+.input{
+  width:100%;padding:14px;margin-bottom:10px;
+  border-radius:10px;border:none;font-size:14px
+}
+.row{
+  display:flex;justify-content:space-between;
+  font-size:13px;margin-bottom:12px
+}
+.row a{color:#00ff99;text-decoration:none}
+.btn-login{
+  width:100%;padding:14px;
+  background:linear-gradient(#ff3b3b,#b30000);
+  border:none;border-radius:12px;
+  color:#fff;font-size:16px;font-weight:900;
+  box-shadow:0 0 15px rgba(255,0,0,.6)
+}
+.btn-daftar{
+  margin-top:8px;width:100%;padding:14px;
+  background:linear-gradient(#2196f3,#0d47a1);
+  border:none;border-radius:12px;
+  color:#fff;font-size:16px;font-weight:900
+}
 
-    section{padding:80px 20px}
+/* ===== SERVICE ===== */
+.service{
+  margin:12px;padding:12px;
+  background:rgba(0,0,0,.4);
+  border-radius:16px
+}
+.service h3{
+  text-align:center;margin-bottom:10px;
+  color:#00ff99
+}
+.box{display:flex;gap:8px}
+.card{
+  flex:1;
+  background:linear-gradient(#1aff6a,#0c8a3d);
+  color:#000;
+  border-radius:14px;
+  padding:12px;
+  text-align:center;
+  font-weight:bold
+}
+.card span{
+  display:block;
+  font-size:22px;
+  margin:4px 0
+}
 
-    .products{
-      display:grid;
-      grid-template-columns:repeat(auto-fit,minmax(250px,1fr));
-      gap:20px;
-    }
+/* ===== FLOAT CHAT ===== */
+.chat-float{
+  position:fixed;bottom:16px;left:16px;
+  width:56px;height:56px;border-radius:50%;
+  background:radial-gradient(circle,#00ff99,#009966);
+  color:#000;
+  display:flex;align-items:center;justify-content:center;
+  font-size:26px;
+  box-shadow:0 0 20px rgba(0,255,153,.9);
+  cursor:pointer
+}
 
-    .card{
-      background:#020617;
-      padding:20px;
-      border-radius:12px;
-      text-align:center;
-      transition:0.3s;
-    }
+/* ===== FOOTER ===== */
+.footer{
+  text-align:center;font-size:12px;
+  opacity:.7;padding:12px
+}
 
-    .card:hover{transform:translateY(-8px)}
+/* ===== TOAST ===== */
+.toast{
+  position:fixed;top:20px;left:50%;
+  transform:translateX(-50%);
+  background:#000;padding:10px 16px;
+  border-radius:10px;
+  box-shadow:0 0 15px #00ff99;
+  display:none
+}
+</style>
+</head>
 
-    .price{font-size:22px;color:#38bdf8;margin:10px 0}
+<body>
 
-    .features{
-      display:grid;
-      grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
-      gap:15px;
-      text-align:center;
-    }
+<div class="app">
 
-    .feature{
-      background:#020617;
-      padding:20px;
-      border-radius:10px;
-    }
-
-    footer{
-      background:#020617;
-      text-align:center;
-      padding:30px;
-    }
-
-    .wa{
-      position:fixed;
-      bottom:20px;
-      right:20px;
-      background:#25D366;
-      padding:12px 18px;
-      border-radius:30px;
-      color:#fff;
-      font-weight:bold;
-    }
-
-    .fade{opacity:0;transform:translateY(20px);transition:0.8s}
-    .fade.show{opacity:1;transform:translateY(0)}
-
-  </style></head>
-<body><header>
-  <h1>SawargiPay</h1>
-  <nav>
-    <a href="#">Home</a>
-    <a href="#produk">Produk</a>
-    <a href="#fitur">Keunggulan</a>
-    <a href="#kontak">Kontak</a>
-  </nav>
-</header><section class="hero">
-  <h2>Akun Premium Murah & Terpercaya</h2>
-  <p>Spotify • YouTube • Netflix • DLL</p>
-  <a href="https://wa.me/6282113945743" class="btn">Order Sekarang</a>
-</section><section id="produk">
-  <h2 style="text-align:center;margin-bottom:30px">Produk</h2>
-  <div class="products"><div class="card fade">
-  <h3>Spotify Premium</h3>
-  <p>No Iklan & Musik Bebas</p>
-  <div class="price">Rp15.000</div>
-  <a href="https://wa.me/6282113945743" class="btn">Beli</a>
-</div>
-
-<div class="card fade">
-  <h3>YouTube Premium</h3>
-  <p>No Ads & Background Play</p>
-  <div class="price">Rp20.000</div>
-  <a href="https://wa.me/6282113945743" class="btn">Beli</a>
-</div>
-
-<div class="card fade">
-  <h3>Netflix</h3>
-  <p>Streaming Full HD</p>
-  <div class="price">Rp30.000</div>
-  <a href="https://wa.me/6282113945743" class="btn">Beli</a>
-</div>
-
+<!-- TOP -->
+<div class="topbar">
+  <div class="top-left">
+    <div class="icon">8</div>
+    <div>LETAL 777</div>
   </div>
-</section><section id="fitur">
-  <h2 style="text-align:center;margin-bottom:30px">Keunggulan</h2>
-  <div class="features">
-    <div class="feature fade">⚡ Proses Cepat</div>
-    <div class="feature fade">💯 Terpercaya</div>
-    <div class="feature fade">💰 Harga Murah</div>
-    <div class="feature fade">📞 Fast Respon</div>
+  <button class="download">Download</button>
+</div>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="logo">LETAL 777</div>
+  <div class="livechat">Live Chat</div>
+</div>
+
+<!-- SLIDER -->
+<div class="slider">
+  <div class="slide active"><img src="baner1.jpg"></div>
+  <div class="slide"><img src="baner2.jpg"></div>
+  <div class="slide"><img src="baner3.jpg"></div>
+</div>
+
+<div class="cta">KLIK DISINI UNTUK INFORMASI SITUS</div>
+
+<!-- LOGIN -->
+<div class="login">
+  <p>Silahkan login untuk mulai bermain</p>
+  <input id="user" class="input" placeholder="Username">
+  <input id="pass" type="password" class="input" placeholder="Password">
+  <div class="row">
+    <a href="#">Versi WAP</a>
+    <a href="#">Lupa password?</a>
   </div>
-</section><footer id="kontak">
-  <p>WhatsApp: 082113945743</p>
-  <p>Instagram: sawargipayplatform</p>
-  <p>Website: sawargipay.com</p>
-  <p>© 2026 SawargiPay</p>
-</footer><a href="https://wa.me/6282113945743" class="wa">Chat WA</a>
+  <button class="btn-login" onclick="login()">LOG IN</button>
+  <button class="btn-daftar">DAFTAR</button>
+</div>
+
+<!-- SERVICE -->
+<div class="service">
+  <h3>Servis Kami</h3>
+  <div class="box">
+    <div class="card">Deposit<span>1</span>Menit</div>
+    <div class="card">Withdraw<span>3</span>Menit</div>
+    <div class="card">Member<span id="m">271335</span></div>
+  </div>
+</div>
+
+<div class="footer">©️ 2026 HADI TOTO</div>
+
+</div>
+
+<div class="chat-float" onclick="alert('Live Chat Aktif (Demo)')">💬</div>
+<div id="toast" class="toast"></div>
 
 <script>
-  const fades = document.querySelectorAll('.fade');
+// SLIDER FADE (NO BLINK)
+let slides=document.querySelectorAll(".slide");
+let i=0;
+setInterval(()=>{
+  slides[i].classList.remove("active");
+  i=(i+1)%slides.length;
+  slides[i].classList.add("active");
+},4000);
 
-  function showOnScroll() {
-    fades.forEach(el => {
-      const top = el.getBoundingClientRect().top;
-      if (top < window.innerHeight - 50) {
-        el.classList.add('show');
-      }
-    });
-  }
+// MEMBER COUNTER
+let m=document.getElementById("m");
+let n=270000,t=271335;
+let c=setInterval(()=>{
+ n+=111;m.innerText=n;
+ if(n>=t){m.innerText=t;clearInterval(c);}
+},20);
 
-  window.addEventListener('scroll', showOnScroll);
-  window.addEventListener('load', showOnScroll);
-</script></body>
+// LOGIN DEMO
+function login(){
+  let u=user.value,p=pass.value;
+  showToast(u==="admin"&&p==="12345"
+    ?"Login berhasil!"
+    :"Username atau password salah");
+}
+
+// TOAST
+function showToast(msg){
+  let t=document.getElementById("toast");
+  t.innerText=msg;
+  t.style.display="block";
+  setTimeout(()=>t.style.display="none",2000);
+}
+</script>
+
+</body>
 </html>
