@@ -18,5 +18,4 @@ async function askAI(){
 
   let data = await res.json();
 
-  chat.innerHTML += "<p><b>AI:</b> "+data.choices[0].message.content+"</p>";
-}
+  chat.innerHTML += "<p><b>AI:</b> "+data.candidates[0].content.parts[0].text+"</p>";
