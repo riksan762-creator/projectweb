@@ -2,12 +2,12 @@ export default async function handler(req, res) {
   const apiKey = process.env.GEMINI_API_KEY;
 
   if (!apiKey) {
-    return res.status(500).json({ error: { message: "GEMINI_API_KEY tidak ditemukan!" } });
+    return res.status(500).json({ error: { message: "GEMINI_API_KEY tidak ditemukan di Vercel!" } });
   }
 
   try {
-    // Kita pakai v1 (Bukan Beta) tapi modelnya harus gemini-1.5-flash
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+    // Kita pakai v1beta karena gemini-1.5-flash seringkali belum stabil di v1 untuk semua region
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -22,12 +22,12 @@ export default async function handler(req, res) {
     const data = await response.json();
 
     if (data.error) {
-      // Menampilkan error asli dari Google kalau gagal lagi
-      return res.status(400).json({ error: { message: data.error.message } });
+      // Jika masih gagal, kita akan lempar pesan error aslinya agar jelas
+      return res.status(data.error.code || 400).json({ error: { message: data.error.message } });
     }
 
     res.status(200).json(data);
   } catch (error) {
-    res.status(500).json({ error: { message: "Gagal menyambung: " + error.message } });
+    res.status(500).json({ error: { message: "Gagal menyambung ke API: " + error.message } });
   }
 }
