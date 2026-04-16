@@ -1,30 +1,30 @@
 export default async function handler(req, res) {
-  // Ambil API Key dari Environment Variable Vercel
   const apiKey = process.env.GEMINI_API_KEY;
 
+  // Cek apakah Key sudah ada
   if (!apiKey) {
-    return res.status(500).json({ error: { message: "GEMINI_API_KEY belum dipasang di Vercel!" } });
+    return res.status(500).json({ error: { message: "GEMINI_API_KEY tidak ditemukan di Environment Variables!" } });
   }
 
   try {
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        contents: [{
-          parts: [{ text: req.body.message }]
-        }]
+        contents: [{ parts: [{ text: req.body.message }] }]
       })
     });
 
     const data = await response.json();
-    
-    // Kirim hasil ke frontend
+
+    // Kalau Google kirim error (misal key salah atau limit habis)
+    if (data.error) {
+      return res.status(400).json({ error: { message: data.error.message } });
+    }
+
+    // Kirim hasil bersih ke frontend
     res.status(200).json(data);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: { message: "Gagal menyambung ke Google AI" } });
+    res.status(500).json({ error: { message: "Koneksi ke Google AI gagal: " + error.message } });
   }
 }
