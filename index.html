@@ -1,22 +1,64 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Riksan AI</title>
-  <link rel="stylesheet" href="style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Riksan AI - Premium Chat</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
 <body>
+    <div class="chat-container">
+        <header class="chat-header">
+            <div class="header-info">
+                <div class="avatar">R</div>
+                <h1>Riksan AI</h1>
+            </div>
+            <span class="status-online">● Online</span>
+        </header>
 
-<header>🚀 Riksan AI</header>
+        <div id="chat" class="chat-body">
+            <div class="message ai-message">
+                <div class="message-content">Halo euy! Saya Riksan AI. Ada yang bisa saya bantu hari ini?</div>
+            </div>
+        </div>
 
-<div class="container">
-  <div id="chat"></div>
+        <div id="image-preview-container" class="image-preview-hidden">
+            <img id="image-preview" src="" alt="Pratinjau">
+            <button onclick="clearImage()" class="clear-image-btn">&times;</button>
+        </div>
 
-  <input id="input" placeholder="Tanya sesuatu...">
-  <button onclick="askAI()">Kirim</button>
-</div>
+        <footer class="chat-footer">
+            <div class="input-group">
+                <label for="file-input" class="icon-btn">
+                    <i class="fas fa-paperclip"></i>
+                </label>
+                <input type="file" id="file-input" accept="image/*" hidden>
 
-<script src="app.js"></script>
+                <button id="camera-btn" class="icon-btn">
+                    <i class="fas fa-camera"></i>
+                </button>
+
+                <input type="text" id="input" placeholder="Tulis pesan atau kirim foto..." onkeypress="handleKeyPress(event)">
+
+                <button onclick="askAI()" class="send-btn">
+                    <i class="fas fa-paper-plane"></i>
+                </button>
+            </div>
+        </footer>
+    </div>
+
+    <div id="camera-modal" class="modal-hidden">
+        <div class="modal-content">
+            <video id="webcam" autoplay playsinline></video>
+            <div class="camera-controls">
+                <button onclick="takePicture()" class="capture-btn">Ambil Foto</button>
+                <button onclick="closeCamera()" class="close-modal-btn">Batal</button>
+            </div>
+            <canvas id="canvas" hidden></canvas>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
 </body>
 </html>
