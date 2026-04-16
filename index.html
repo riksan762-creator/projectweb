@@ -1,0 +1,171 @@
+<!DOCTYPE html><html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SawargiPay Premium</title>  <!-- Font -->  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:'Poppins',sans-serif;background:#0b1220;color:#fff}
+
+    header{
+      position:fixed;
+      width:100%;
+      top:0;
+      background:rgba(0,0,0,0.7);
+      backdrop-filter:blur(10px);
+      display:flex;
+      justify-content:space-between;
+      padding:15px 30px;
+      z-index:1000;
+    }
+
+    header h1{color:#38bdf8}
+    nav a{color:#fff;margin-left:15px;font-size:14px}
+
+    .hero{
+      height:100vh;
+      display:flex;
+      flex-direction:column;
+      justify-content:center;
+      align-items:center;
+      text-align:center;
+      padding:20px;
+      background:linear-gradient(135deg,#0f172a,#020617);
+    }
+
+    .hero h2{font-size:40px;margin-bottom:10px}
+    .hero p{opacity:0.7}
+
+    .btn{
+      display:inline-block;
+      margin-top:20px;
+      padding:12px 25px;
+      background:#38bdf8;
+      color:#000;
+      border-radius:25px;
+      font-weight:bold;
+      transition:0.3s;
+    }
+
+    .btn:hover{transform:scale(1.05)}
+
+    section{padding:80px 20px}
+
+    .products{
+      display:grid;
+      grid-template-columns:repeat(auto-fit,minmax(250px,1fr));
+      gap:20px;
+    }
+
+    .card{
+      background:#020617;
+      padding:20px;
+      border-radius:12px;
+      text-align:center;
+      transition:0.3s;
+    }
+
+    .card:hover{transform:translateY(-8px)}
+
+    .price{font-size:22px;color:#38bdf8;margin:10px 0}
+
+    .features{
+      display:grid;
+      grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
+      gap:15px;
+      text-align:center;
+    }
+
+    .feature{
+      background:#020617;
+      padding:20px;
+      border-radius:10px;
+    }
+
+    footer{
+      background:#020617;
+      text-align:center;
+      padding:30px;
+    }
+
+    .wa{
+      position:fixed;
+      bottom:20px;
+      right:20px;
+      background:#25D366;
+      padding:12px 18px;
+      border-radius:30px;
+      color:#fff;
+      font-weight:bold;
+    }
+
+    .fade{opacity:0;transform:translateY(20px);transition:0.8s}
+    .fade.show{opacity:1;transform:translateY(0)}
+
+  </style></head>
+<body><header>
+  <h1>SawargiPay</h1>
+  <nav>
+    <a href="#">Home</a>
+    <a href="#produk">Produk</a>
+    <a href="#fitur">Keunggulan</a>
+    <a href="#kontak">Kontak</a>
+  </nav>
+</header><section class="hero">
+  <h2>Akun Premium Murah & Terpercaya</h2>
+  <p>Spotify • YouTube • Netflix • DLL</p>
+  <a href="https://wa.me/6282113945743" class="btn">Order Sekarang</a>
+</section><section id="produk">
+  <h2 style="text-align:center;margin-bottom:30px">Produk</h2>
+  <div class="products"><div class="card fade">
+  <h3>Spotify Premium</h3>
+  <p>No Iklan & Musik Bebas</p>
+  <div class="price">Rp15.000</div>
+  <a href="https://wa.me/6282113945743" class="btn">Beli</a>
+</div>
+
+<div class="card fade">
+  <h3>YouTube Premium</h3>
+  <p>No Ads & Background Play</p>
+  <div class="price">Rp20.000</div>
+  <a href="https://wa.me/6282113945743" class="btn">Beli</a>
+</div>
+
+<div class="card fade">
+  <h3>Netflix</h3>
+  <p>Streaming Full HD</p>
+  <div class="price">Rp30.000</div>
+  <a href="https://wa.me/6282113945743" class="btn">Beli</a>
+</div>
+
+  </div>
+</section><section id="fitur">
+  <h2 style="text-align:center;margin-bottom:30px">Keunggulan</h2>
+  <div class="features">
+    <div class="feature fade">⚡ Proses Cepat</div>
+    <div class="feature fade">💯 Terpercaya</div>
+    <div class="feature fade">💰 Harga Murah</div>
+    <div class="feature fade">📞 Fast Respon</div>
+  </div>
+</section><footer id="kontak">
+  <p>WhatsApp: 082113945743</p>
+  <p>Instagram: sawargipayplatform</p>
+  <p>Website: sawargipay.com</p>
+  <p>© 2026 SawargiPay</p>
+</footer><a href="https://wa.me/6282113945743" class="wa">Chat WA</a>
+
+<script>
+  const fades = document.querySelectorAll('.fade');
+
+  function showOnScroll() {
+    fades.forEach(el => {
+      const top = el.getBoundingClientRect().top;
+      if (top < window.innerHeight - 50) {
+        el.classList.add('show');
+      }
+    });
+  }
+
+  window.addEventListener('scroll', showOnScroll);
+  window.addEventListener('load', showOnScroll);
+</script></body>
+</html>
