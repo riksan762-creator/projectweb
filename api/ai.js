@@ -1,14 +1,13 @@
 export default async function handler(req, res) {
-
-  const response = await fetch("https://api.openai.com/v1/chat/completions", {
-    method:"POST",
-    headers:{
-      "Content-Type":"application/json",
-      "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
+  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model:"gpt-4o-mini",
-      messages:[{role:"user",content:req.body.message}]
+      contents: [{
+        parts: [{ text: req.body.message }]
+      }]
     })
   });
 
