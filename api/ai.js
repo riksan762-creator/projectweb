@@ -1,18 +1,12 @@
 export const config = {
-  api: {
-    bodyParser: false, // Wajib false agar bisa baca FormData manual
-  },
+  api: { bodyParser: false },
 };
 
 export default async function handler(req, res) {
-  const apiKey = process.env.GEMINI_API_KEY;
-
-  if (!apiKey) {
-    return res.status(500).json({ error: { message: "GEMINI_API_KEY tidak ditemukan di Vercel!" } });
-  }
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) return res.status(500).json({ error: { message: "GROQ_API_KEY missing!" } });
 
   try {
-    // 1. Baca data dari frontend
     const chunks = [];
     for await (const chunk of req) { chunks.push(chunk); }
     const buffer = Buffer.concat(chunks);
@@ -20,36 +14,28 @@ export default async function handler(req, res) {
     const params = new URLSearchParams(bodyStr);
     
     const userMessage = params.get('message') || "";
-    const base64Image = params.get('image') || null;
 
-    // 2. Susun struktur parts sesuai dokumentasi
-    const parts = [{ text: userMessage }];
-
-    // Jika ada gambar, tambahkan inline_data (Multimodal)
-    if (base64Image) {
-      const base64Data = base64Image.split(',')[1];
-      const mimeType = base64Image.split(';')[0].split(':')[1];
-      parts.push({
-        inline_data: {
-          mime_type: mimeType,
-          data: base64Data
-        }
-      });
-    }
-
-    // 3. Panggil API sesuai persis dokumentasi REST yang kamu kasih
-    const response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent", {
+    // Groq Chat Completion (Llama 3.3 70B)
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-goog-api-key": apiKey // Sesuai dokumentasi kamu
+        "Authorization": `Bearer ${apiKey}`
       },
       body: JSON.stringify({
-        "contents": [
+        model: "llama-3.3-70b-versatile",
+        messages: [
           {
-            "parts": parts
+            role: "system",
+            content: "Kamu adalah Riksan AI, asisten pribadi ramah buatan Riksan. Jawab dalam Bahasa Indonesia yang santai."
+          },
+          {
+            role: "user",
+            content: userMessage
           }
-        ]
+        ],
+        temperature: 0.7,
+        max_tokens: 1024
       })
     });
 
@@ -59,8 +45,17 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: { message: data.error.message } });
     }
 
-    res.status(200).json(data);
+    // Menyamakan format output agar frontend (app.js) tidak perlu diubah
+    const formattedResponse = {
+      candidates: [{
+        content: {
+          parts: [{ text: data.choices[0].message.content }]
+        }
+      }]
+    };
+
+    res.status(200).json(formattedResponse);
   } catch (error) {
-    res.status(500).json({ error: { message: "Koneksi gagal: " + error.message } });
+    res.status(500).json({ error: { message: "Groq Error: " + error.message } });
   }
 }
