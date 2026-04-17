@@ -2,88 +2,84 @@ const chatForm = document.getElementById('chatForm');
 const userInput = document.getElementById('userInput');
 const chatArea = document.getElementById('chatArea');
 const micBtn = document.getElementById('micBtn');
-const cameraBtn = document.getElementById('cameraBtn');
-const fileInput = document.getElementById('fileInput');
 
-let isVoiceOutputEnabled = true;
+// --- FUNGSI UTAMA KIRIM PESAN ---
+async function sendMessage(e) {
+    if (e) e.preventDefault();
+    
+    const message = userInput.value.trim();
+    if (!message) return;
 
-// --- FITUR SUARA (SPEECH TO TEXT) ---
-const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-if (SpeechRecognition) {
-    const recognition = new SpeechRecognition();
-    recognition.lang = 'id-ID';
+    // Tampilkan pesan user di layar
+    appendMessage('user', message);
+    userInput.value = '';
 
-    micBtn.addEventListener('click', () => {
-        recognition.start();
-        micBtn.classList.add('mic-active');
-    });
+    // Buat element loading
+    const loadingId = 'loading-' + Date.now();
+    const loadingDiv = document.createElement('div');
+    loadingDiv.id = loadingId;
+    loadingDiv.className = 'flex justify-start mb-6 message-in';
+    loadingDiv.innerHTML = `<div class="ai-bubble p-4 rounded-2xl text-xs text-slate-500 italic"><i class="fas fa-circle-notch animate-spin mr-2"></i>Riksan AI sedang memproses...</div>`;
+    chatArea.appendChild(loadingDiv);
+    chatArea.scrollTop = chatArea.scrollHeight;
 
-    recognition.onresult = (event) => {
-        const transcript = event.results[0][0].transcript;
-        userInput.value = transcript;
-        micBtn.classList.remove('mic-active');
-    };
+    try {
+        const response = await fetch('/api/ai', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ message: message })
+        });
 
-    recognition.onerror = () => micBtn.classList.remove('mic-active');
-}
+        const data = await response.json();
+        
+        // Hapus loading
+        const loader = document.getElementById(loadingId);
+        if (loader) loader.remove();
 
-// --- FITUR SUARA (TEXT TO SPEECH) ---
-function speak(text) {
-    if (!isVoiceOutputEnabled) return;
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'id-ID';
-    utterance.rate = 1.0;
-    window.speechSynthesis.speak(utterance);
-}
-
-// --- FITUR KAMERA ---
-cameraBtn.addEventListener('click', () => {
-    fileInput.click(); // Cara termudah untuk semua perangkat: upload/kamera
-});
-
-fileInput.addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (file) {
-        alert('Foto "' + file.name + '" terpilih. Groq akan memproses teksnya.');
+        if (data.candidates && data.candidates[0].content.parts[0].text) {
+            appendMessage('ai', data.candidates[0].content.parts[0].text);
+        } else {
+            appendMessage('ai', "Waduh, servernya lagi sibuk euy. Coba lagi ya!");
+        }
+    } catch (error) {
+        if (document.getElementById(loadingId)) document.getElementById(loadingId).remove();
+        appendMessage('ai', "Koneksi terputus. Coba cek internet kamu, Bos.");
+        console.error("Error:", error);
     }
-});
+}
 
-// --- CHAT LOGIC ---
+// --- FUNGSI TAMPIL PESAN ---
 function appendMessage(role, text) {
     const msgDiv = document.createElement('div');
     msgDiv.className = `flex ${role === 'user' ? 'justify-end' : 'justify-start'} message-in mb-6`;
     
+    const bubbleClass = role === 'user' ? 'user-bubble rounded-tr-none' : 'ai-bubble rounded-tl-none';
+    
     msgDiv.innerHTML = `
-        <div class="${role === 'user' ? 'user-bubble rounded-tr-none' : 'ai-bubble rounded-tl-none'} max-w-[85%] p-4 rounded-2xl border-white/5">
-            <p class="text-sm leading-relaxed">${text}</p>
+        <div class="${bubbleClass} max-w-[85%] p-4 rounded-2xl border border-white/5">
+            <p class="text-sm md:text-base leading-relaxed text-white">${text}</p>
         </div>
     `;
     chatArea.appendChild(msgDiv);
     chatArea.scrollTop = chatArea.scrollHeight;
-    
-    if (role === 'ai') speak(text);
 }
 
-chatForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const msg = userInput.value.trim();
-    if (!msg) return;
+// Event Listeners
+chatForm.addEventListener('submit', sendMessage);
 
-    appendMessage('user', msg);
-    userInput.value = '';
-
-    try {
-        const res = await fetch('/api/ai', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({ message: msg })
-        });
-        const data = await res.json();
-        
-        if (data.candidates) {
-            appendMessage('ai', data.candidates[0].content.parts[0].text);
-        }
-    } catch (err) {
-        appendMessage('ai', 'Error koneksi, Bos.');
-    }
-});
+// --- FITUR VOICE (SPEECH TO TEXT) ---
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+if (SpeechRecognition) {
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'id-ID';
+    micBtn.addEventListener('click', () => {
+        recognition.start();
+        micBtn.classList.add('mic-active');
+    });
+    recognition.onresult = (event) => {
+        userInput.value = event.results[0][0].transcript;
+        micBtn.classList.remove('mic-active');
+        sendMessage(); // Langsung kirim setelah bicara
+    };
+    recognition.onerror = () => micBtn.classList.remove('mic-active');
+}
