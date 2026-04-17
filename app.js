@@ -10,7 +10,7 @@ const removeImg = document.getElementById('removeImg');
 
 let currentImageBase64 = null;
 
-// --- LOGIKA PESAN KE LAYAR ---
+// --- RENDER PESAN ---
 function appendMessage(role, text, imageUrl = null) {
     const wrapper = document.createElement('div');
     wrapper.className = `flex w-full mb-8 message-in ${role === 'user' ? 'justify-end' : 'justify-start'}`;
@@ -35,16 +35,11 @@ function appendMessage(role, text, imageUrl = null) {
     chatArea.scrollTo({ top: chatArea.scrollHeight, behavior: 'smooth' });
 }
 
-// --- FITUR GAMBAR/KAMERA ---
+// --- GAMBAR/KAMERA ---
 cameraBtn.addEventListener('click', () => fileInput.click());
-
 fileInput.addEventListener('change', function() {
     const file = this.files[0];
     if (file) {
-        if (file.size > 3 * 1024 * 1024) {
-            alert("Gambar terlalu berat, Bos! Cari yang di bawah 3MB.");
-            return;
-        }
         const reader = new FileReader();
         reader.onload = (e) => {
             currentImageBase64 = e.target.result;
@@ -54,17 +49,15 @@ fileInput.addEventListener('change', function() {
         reader.readAsDataURL(file);
     }
 });
-
 removeImg.addEventListener('click', () => {
     currentImageBase64 = null;
-    fileInput.value = "";
     imagePreview.classList.add('hidden');
 });
 
-// --- FITUR SUARA (SPEECH TO TEXT) - AUTO SEND ---
-const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-if (SpeechRecognition) {
-    const rec = new SpeechRecognition();
+// --- MIC (NGOMONG LANGSUNG KIRIM) ---
+const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+if (Recognition) {
+    const rec = new Recognition();
     rec.lang = 'id-ID';
     micBtn.addEventListener('click', () => {
         rec.start();
@@ -73,29 +66,24 @@ if (SpeechRecognition) {
     rec.onresult = (e) => {
         userInput.value = e.results[0][0].transcript;
         micBtn.classList.remove('mic-active');
-        // LANGSUNG KIRIM OTOMATIS SETELAH NGOMONG
-        chatForm.dispatchEvent(new Event('submit'));
+        chatForm.dispatchEvent(new Event('submit')); // AUTO KIRIM
     };
     rec.onerror = () => micBtn.classList.remove('mic-active');
 }
 
-// --- KIRIM DATA KE API ---
+// --- SUBMIT ---
 chatForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const text = userInput.value.trim();
     if (!text && !currentImageBase64) return;
 
-    // Tampilkan di UI
-    appendMessage('user', text || "Menganalisis gambar...", currentImageBase64);
+    appendMessage('user', text || "Analisis gambar...", currentImageBase64);
     
-    // Reset Input
     const imgToSend = currentImageBase64;
     userInput.value = '';
     imagePreview.classList.add('hidden');
     currentImageBase64 = null;
-    fileInput.value = "";
 
-    // Loading
     const loaderId = 'ld-' + Date.now();
     const loader = document.createElement('div');
     loader.id = loaderId;
@@ -111,17 +99,16 @@ chatForm.addEventListener('submit', async (e) => {
         });
         
         const data = await res.json();
-        const loaderElem = document.getElementById(loaderId);
-        if(loaderElem) loaderElem.remove();
+        if(document.getElementById(loaderId)) document.getElementById(loaderId).remove();
 
-        // LOGIKA BARU: Cek data.reply atau data.text (Sesuai api/ai.js kamu)
-        const responseText = data.reply || data.text || "Respon kosong, Bos.";
-        appendMessage('ai', responseText);
-        
-        // FITUR SUARA DIHAPUS BIAR BISU TOTAL
+        // AMBIL 'reply' SESUAI BACKEND
+        if (data.reply) {
+            appendMessage('ai', data.reply);
+        } else {
+            appendMessage('ai', 'Error: Gagal ambil respon, Bos.');
+        }
     } catch (err) {
-        const loaderElem = document.getElementById(loaderId);
-        if(loaderElem) loaderElem.remove();
-        appendMessage('ai', 'Koneksi error, coba cek internet atau redeploy Vercel.');
+        if(document.getElementById(loaderId)) document.getElementById(loaderId).remove();
+        appendMessage('ai', 'Koneksi error, coba redeploy Vercel.');
     }
 });
