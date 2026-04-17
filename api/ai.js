@@ -8,13 +8,12 @@ export default async function handler(req, res) {
     if (req.method === 'OPTIONS') return res.status(200).end();
 
     if (!apiKey) {
-        return res.status(500).json({ error: "API Key tidak terbaca di Vercel, Bos!" });
+        return res.status(200).json({ reply: "Bos, API Key belum dipasang di Vercel!" });
     }
 
     try {
         const { message } = req.body;
 
-        // Menggunakan /v1 sesuai dokumentasi agar kompatibel sempurna
         const response = await fetch("https://api.deepseek.com/v1/chat/completions", {
             method: "POST",
             headers: {
@@ -22,30 +21,33 @@ export default async function handler(req, res) {
                 "Authorization": `Bearer ${apiKey.trim()}`
             },
             body: JSON.stringify({
-                model: "deepseek-chat", // DeepSeek-V3.2 (Cepat & Non-thinking)
+                model: "deepseek-chat",
                 messages: [
                     { 
                         role: "system", 
-                        content: "Kamu adalah Riksan AI (DeepSeek Engine V3.2). Pemilik: Riksan (CTO SawargiPay). Jawab santai, cerdas, panggil 'Bos'. JANGAN PAKAI SUARA." 
+                        content: "Kamu adalah Riksan AI (DeepSeek V3.2). Pemilik: Riksan (CTO SawargiPay). Jawab santai, cerdas, panggil 'Bos'. JANGAN PAKAI SUARA." 
                     },
                     { role: "user", content: message }
                 ],
-                // Context limit 128K, tapi kita batasi output agar hemat saldo
-                max_tokens: 4096, 
+                max_tokens: 2048,
                 stream: false
             })
         });
 
         const data = await response.json();
 
-        // Cek jika ada error dari pihak DeepSeek (seperti saldo habis/key salah)
         if (data.error) {
-            return res.status(401).json({ error: `DeepSeek Error: ${data.error.message}` });
+            return res.status(200).json({ reply: `DeepSeek Error: ${data.error.message}` });
         }
 
-        res.status(200).json({ text: data.choices[0].message.content });
+        if (data.choices && data.choices[0]) {
+            // KIRIM SEBAGAI 'reply'
+            res.status(200).json({ reply: data.choices[0].message.content });
+        } else {
+            res.status(200).json({ reply: "Respon kosong. Cek saldo DeepSeek, Bos!" });
+        }
 
     } catch (error) {
-        res.status(500).json({ error: "Gagal terhubung ke DeepSeek: " + error.message });
+        res.status(500).json({ reply: "Error: " + error.message });
     }
 }
