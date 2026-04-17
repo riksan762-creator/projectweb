@@ -1,87 +1,78 @@
-export const config = {
-  api: {
-    bodyParser: {
-      sizeLimit: '4mb', // Naikkan limit agar bisa terima gambar
-    },
-  },
-};
-
 export default async function handler(req, res) {
-  const apiKey = process.env.GROQ_API_KEY;
+    // 1. Ambil API Key dari Vercel Environment Variables
+    const apiKey = process.env.GROQ_API_KEY;
 
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: "Method not allowed" });
-  }
+    // Setting Header agar tidak diblokir browser (CORS)
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-  if (!apiKey) {
-    return res.status(500).json({ error: "GROQ_API_KEY tidak ditemukan di Vercel!" });
-  }
+    if (req.method === 'OPTIONS') return res.status(200).end();
+    if (req.method !== 'POST') return res.status(405).json({ error: "Gunakan POST" });
 
-  try {
-    const { message, imageBase64 } = req.body;
-
-    if (!message) {
-      return res.status(400).json({ error: "Pesan kosong euy!" });
+    if (!apiKey) {
+        return res.status(200).json({ 
+            candidates: [{ content: { parts: [{ text: "Waduh Bos, GROQ_API_KEY belum dipasang di Vercel euy!" }] } }] 
+        });
     }
 
-    // --- LOGIKA MULTIMODAL (TEKS + GAMBAR) ---
-    const userContent = [];
+    try {
+        // 2. Baca data dari app.js
+        const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+        const { message, imageBase64 } = body;
 
-    // 1. Tambahkan Teks
-    userContent.push({ type: "text", text: message });
+        // 3. Susun konten untuk model Vision
+        const userContent = [];
+        userContent.push({ type: "text", text: message || "Apa yang ada di gambar ini?" });
 
-    // 2. Tambahkan Gambar (Jika Ada)
-    if (imageBase64) {
-      // Pastikan format base64 benar (data:image/jpeg;base64,...)
-      userContent.push({
-        type: "image_url",
-        image_url: {
-          url: imageBase64,
-        },
-      });
+        if (imageBase64) {
+            userContent.push({
+                type: "image_url",
+                image_url: { url: imageBase64 }
+            });
+        }
+
+        // 4. Panggil API Groq (Pakai model 11B Vision yang paling stabil)
+        const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${apiKey}`
+            },
+            body: JSON.stringify({
+                model: "llama-3.2-11b-vision-preview",
+                messages: [
+                    { 
+                        role: "system", 
+                        content: "Kamu adalah Riksan AI, asisten pintar buatan Riksan. Kamu bisa melihat gambar dan bicara dalam Bahasa Indonesia yang santai tapi profesional." 
+                    },
+                    { role: "user", content: userContent }
+                ],
+                temperature: 0.7,
+                max_tokens: 1000
+            })
+        });
+
+        const data = await response.json();
+
+        // 5. Kirim balik hasil ke Frontend
+        if (data.choices && data.choices[0]) {
+            res.status(200).json({
+                candidates: [{
+                    content: { parts: [{ text: data.choices[0].message.content }] }
+                }]
+            });
+        } else {
+            console.error("Groq Error:", data);
+            res.status(200).json({
+                candidates: [{
+                    content: { parts: [{ text: "Maaf Bos, Groq lagi pening. Coba lagi ya!" }] }
+                }]
+            });
+        }
+
+    } catch (error) {
+        console.error("Server Crash:", error);
+        res.status(500).json({ error: "Server Error: " + error.message });
     }
-
-    // --- PANGGIL GROQ VISION API ---
-    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        // PENTING: Gunakan model Vision
-        model: "llama-3.2-90b-vision-preview", 
-        messages: [
-          { 
-            role: "system", 
-            content: "Kamu adalah Riksan AI, asisten ramah dan pintar buatan Riksan. Kamu memiliki kemampuan untuk melihat dan menganalisis gambar yang dikirimkan user. Jawab dalam Bahasa Indonesia yang santai." 
-          },
-          { 
-            role: "user", 
-            content: userContent // Berisi teks dan gambar
-          }
-        ],
-        temperature: 0.7,
-        max_tokens: 1024,
-      })
-    });
-
-    const data = await response.json();
-
-    if (data.error) {
-      console.error("Groq API Error:", data.error);
-      return res.status(400).json({ error: { message: data.error.message } });
-    }
-
-    // --- FORMAT RESPON UNTUK APP.JS ---
-    res.status(200).json({
-      candidates: [{
-        content: { parts: [{ text: data.choices[0].message.content }] }
-      }]
-    });
-
-  } catch (error) {
-    console.error("Server Error:", error);
-    res.status(500).json({ error: { message: error.message } });
-  }
 }
