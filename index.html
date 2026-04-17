@@ -3,69 +3,36 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Riksan AI - Pro</title>
+    <title>Riksan AI - CTO Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
-<body class="bg-[#0d0d0d] text-[#ececec]">
+<body>
+    <aside class="sidebar">
+        <button onclick="newChat()" class="new-chat-btn"><span>+</span> Chat Baru</button>
+        <input type="text" id="search-history" placeholder="🔍 Cari percakapan..." class="search-input" oninput="filterHistory()">
+        <div id="history-list" class="flex-1 overflow-y-auto mt-4"></div>
+        <div class="text-[10px] text-gray-600 text-center mt-4 uppercase tracking-tighter">SawargiPay v2.0</div>
+    </aside>
 
-    <div class="flex h-screen overflow-hidden">
-        <main class="flex-1 flex flex-col relative">
-            
-            <header class="p-4 flex justify-between items-center bg-[#0d0d0d]/80 backdrop-blur-md sticky top-0 z-10">
-                <div class="flex items-center gap-2">
-                    <span class="font-bold tracking-tight">Riksan AI</span>
-                    <span class="text-[10px] bg-[#2f2f2f] px-2 py-0.5 rounded-full text-slate-400">LLAMA 3.3</span>
-                </div>
-                <button onclick="location.reload()" class="text-slate-400 hover:text-white transition"><i class="fas fa-edit"></i></button>
-            </header>
+    <main>
+        <header class="p-5 flex justify-between items-center bg-[#131314]">
+            <span class="text-xl tracking-tight">Riksan AI <span class="text-blue-500 text-xs">Business</span></span>
+            <div class="text-[10px] text-green-500 font-bold border border-green-900 px-2 py-0.5 rounded">BLOOMBERG LIVE</div>
+        </header>
 
-            <div id="chatArea" class="flex-1 overflow-y-auto px-4 md:px-0 max-w-3xl mx-auto w-full space-y-8 py-10 custom-scroll">
-                <div class="text-center py-20 opacity-40">
-                    <h2 class="text-2xl font-semibold">Apa yang bisa saya bantu?</h2>
-                </div>
+        <div id="chat-box" class="chat-display"></div>
+
+        <div class="input-container">
+            <div class="input-wrapper">
+                <input type="text" id="user-input" placeholder="Tanyakan tentang pasar global atau coding..." onkeypress="if(event.key==='Enter') sendMessage()">
+                <button onclick="sendMessage()" class="send-btn">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5 10l7-7m0 0l7 7m-7-7v18" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
             </div>
-
-            <div id="imagePreview" class="hidden max-w-3xl mx-auto w-full px-4 mb-2">
-                <div class="relative inline-block">
-                    <img id="previewImg" class="w-20 h-20 object-cover rounded-xl border border-white/10 shadow-xl">
-                    <button id="removeImg" class="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 text-[10px]"><i class="fas fa-times"></i></button>
-                </div>
-            </div>
-
-            <footer class="p-4 bg-gradient-to-t from-[#0d0d0d] via-[#0d0d0d] to-transparent">
-                <div class="max-w-3xl mx-auto relative">
-                    <form id="chatForm" class="bg-[#2f2f2f] rounded-[26px] p-2 flex items-end gap-2 shadow-2xl transition-all border border-transparent focus-within:border-white/10">
-                        
-                        <div class="flex pb-1 pl-1">
-                            <button type="button" id="cameraBtn" class="w-10 h-10 rounded-full hover:bg-white/5 text-slate-400 flex items-center justify-center transition">
-                                <i class="fas fa-paperclip"></i>
-                            </button>
-                            <input type="file" id="fileInput" accept="image/*" class="hidden" capture="environment">
-                        </div>
-
-                        <textarea 
-                            id="userInput" 
-                            rows="1" 
-                            placeholder="Tanya Riksan AI..." 
-                            class="flex-1 bg-transparent border-none outline-none py-3 px-1 text-[16px] resize-none max-h-40 overflow-y-auto placeholder:text-slate-500"
-                        ></textarea>
-
-                        <div class="flex pb-1 pr-1 gap-1">
-                            <button type="button" id="micBtn" class="w-10 h-10 rounded-full hover:bg-white/5 text-slate-400 flex items-center justify-center transition">
-                                <i class="fas fa-microphone"></i>
-                            </button>
-                            <button type="submit" id="sendBtn" class="w-10 h-10 bg-white text-black rounded-full flex items-center justify-center disabled:opacity-20 transition-opacity">
-                                <i class="fas fa-arrow-up"></i>
-                            </button>
-                        </div>
-                    </form>
-                    <p class="text-[10px] text-center text-slate-600 mt-3">Riksan AI dapat membuat kesalahan. Periksa informasi penting.</p>
-                </div>
-            </footer>
-        </main>
-    </div>
+        </div>
+    </main>
 
     <script src="app.js"></script>
 </body>
