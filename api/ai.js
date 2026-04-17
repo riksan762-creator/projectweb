@@ -7,10 +7,6 @@ export default async function handler(req, res) {
 
     if (req.method === 'OPTIONS') return res.status(200).end();
 
-    if (!apiKey) {
-        return res.status(200).json({ reply: "Bos, API Key Groq belum dipasang di Vercel!" });
-    }
-
     try {
         const { message } = req.body;
 
@@ -21,29 +17,28 @@ export default async function handler(req, res) {
                 "Authorization": `Bearer ${apiKey.trim()}`
             },
             body: JSON.stringify({
-                // Model Llama 3.3 70B: Paling pintar dan setara ChatGPT-4o
-                model: "llama-3.3-70b-versatile",
+                // Tetap pakai model dewa biar kenceng
+                model: "llama-3.3-70b-versatile", 
                 messages: [
                     { 
                         role: "system", 
-                        content: "Kamu adalah Riksan AI (Llama 3.3 Engine). Pemilik: Riksan (CTO SawargiPay). Jawab dengan gaya asisten profesional tapi santai, panggil 'Bos'. Berikan jawaban yang cerdas ala ChatGPT." 
+                        content: "Hari ini adalah Jumat, 17 April 2026. Kamu adalah Riksan AI v2.0 yang ditenagai oleh Groq Llama 3.3. Pemilik: Riksan (CTO SawargiPay). Jawab dengan gaya asisten digital premium, cerdas, santai, dan panggil 'Bos'. Kamu tahu sekarang tahun 2026." 
                     },
                     { role: "user", content: message }
                 ],
-                temperature: 0.7,
-                max_tokens: 2048
+                temperature: 0.7
             })
         });
 
         const data = await response.json();
-
+        
         if (data.choices && data.choices[0]) {
             res.status(200).json({ reply: data.choices[0].message.content });
         } else {
-            res.status(200).json({ reply: "Duh Bos, Groq lagi pusing. Coba lagi ya!" });
+            res.status(200).json({ reply: "Aduh Bos, respon Groq kosong nih." });
         }
 
     } catch (error) {
-        res.status(500).json({ reply: "Error Groq: " + error.message });
+        res.status(200).json({ reply: "Ada kendala teknis, Bos: " + error.message });
     }
 }
