@@ -3,62 +3,82 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Riksan AI - Premium Chat</title>
+    <title>Riksan AI - Pro </title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
-<body>
-    <div class="chat-container">
-        <header class="chat-header">
-            <div class="header-info">
-                <div class="avatar">R</div>
-                <h1>Riksan AI</h1>
+<body class="bg-[#0b0f1a] text-slate-200">
+
+    <div class="flex h-screen overflow-hidden p-0 md:p-4">
+        <main class="flex-1 flex flex-col glass-morphism md:rounded-[2rem] overflow-hidden relative border-0 md:border border-white/10">
+            
+            <div class="absolute -top-24 -right-24 w-64 h-64 bg-blue-600/20 blur-[100px] pointer-events-none"></div>
+
+            <header class="p-5 flex justify-between items-center border-b border-white/5 bg-white/5 backdrop-blur-md">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
+                        <i class="fas fa-microchip text-white"></i>
+                    </div>
+                    <div>
+                        <h1 class="font-bold text-sm tracking-wide uppercase">Riksan AI <span class="text-blue-400 text-[10px] ml-1">v2.0</span></h1>
+                        <p class="text-[10px] text-green-400 flex items-center gap-1"><span class="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span> Neural Engine Active</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-4 text-slate-400">
+                    <button id="voiceOutputToggle" class="hover:text-white transition-colors" title="Toggle Voice Response">
+                        <i class="fas fa-volume-up"></i>
+                    </button>
+                    <i class="fas fa-gear cursor-pointer hover:rotate-90 transition-all duration-300"></i>
+                </div>
+            </header>
+
+            <div id="chatArea" class="flex-1 overflow-y-auto p-6 space-y-6 custom-scroll">
+                <div class="welcome-screen text-center py-20">
+                    <h2 class="text-3xl font-bold gradient-text mb-4">Good Day, Riksan.</h2>
+                    <p class="text-slate-500 text-sm tracking-widest uppercase">How can I assist your business today?</p>
+                </div>
             </div>
-            <span class="status-online">● Online</span>
-        </header>
 
-        <div id="chat" class="chat-body">
-            <div class="message ai-message">
-                <div class="message-content">Halo euy! Saya Riksan AI. Ada yang bisa saya bantu hari ini?</div>
-            </div>
-        </div>
+            <div id="imagePreviewContainer" class="hidden px-6 py-2 bg-white/5 border-t border-white/5 flex gap-2 overflow-x-auto">
+                </div>
 
-        <div id="image-preview-container" class="image-preview-hidden">
-            <img id="image-preview" src="" alt="Pratinjau">
-            <button onclick="clearImage()" class="clear-image-btn">&times;</button>
-        </div>
+            <footer class="p-4 md:p-8 bg-gradient-to-t from-[#0b0f1a] to-transparent">
+                <div class="max-w-4xl mx-auto">
+                    <form id="chatForm" class="relative glass-input rounded-2xl p-2 flex items-center gap-2 border border-white/10 focus-within:border-blue-500/50 transition-all shadow-2xl">
+                        
+                        <div class="flex gap-1 ml-2">
+                            <button type="button" id="cameraBtn" class="w-10 h-10 rounded-xl hover:bg-white/10 text-slate-400 transition-all" title="Ambil Foto">
+                                <i class="fas fa-camera text-sm"></i>
+                            </button>
+                            <input type="file" id="fileInput" accept="image/*" class="hidden">
+                        </div>
 
-        <footer class="chat-footer">
-            <div class="input-group">
-                <label for="file-input" class="icon-btn">
-                    <i class="fas fa-paperclip"></i>
-                </label>
-                <input type="file" id="file-input" accept="image/*" hidden>
+                        <input 
+                            type="text" 
+                            id="userInput" 
+                            placeholder="Type a command or use voice..." 
+                            class="flex-1 bg-transparent border-none outline-none py-3 px-2 text-sm md:text-base placeholder:text-slate-600"
+                        >
 
-                <button id="camera-btn" class="icon-btn">
-                    <i class="fas fa-camera"></i>
-                </button>
-
-                <input type="text" id="input" placeholder="Tulis pesan atau kirim foto..." onkeypress="handleKeyPress(event)">
-
-                <button onclick="askAI()" class="send-btn">
-                    <i class="fas fa-paper-plane"></i>
-                </button>
-            </div>
-        </footer>
+                        <div class="flex items-center gap-2 pr-2">
+                            <button type="button" id="micBtn" class="w-10 h-10 rounded-xl hover:bg-red-500/20 text-slate-400 hover:text-red-400 transition-all" title="Voice Input">
+                                <i class="fas fa-microphone text-sm"></i>
+                            </button>
+                            <button type="submit" class="w-11 h-11 bg-blue-600 hover:bg-blue-500 text-white rounded-xl shadow-lg shadow-blue-600/30 active:scale-90 transition-all">
+                                <i class="fas fa-arrow-up text-xs"></i>
+                            </button>
+                        </div>
+                    </form>
+                    <p class="text-[9px] text-center text-slate-600 mt-4 tracking-[0.4em] font-bold uppercase">Secured by Riksan Encryption</p>
+                </div>
+            </footer>
+        </main>
     </div>
 
-    <div id="camera-modal" class="modal-hidden">
-        <div class="modal-content">
-            <video id="webcam" autoplay playsinline></video>
-            <div class="camera-controls">
-                <button onclick="takePicture()" class="capture-btn">Ambil Foto</button>
-                <button onclick="closeCamera()" class="close-modal-btn">Batal</button>
-            </div>
-            <canvas id="canvas" hidden></canvas>
-        </div>
-    </div>
+    <video id="video" class="hidden" autoplay playsinline></video>
+    <canvas id="canvas" class="hidden"></canvas>
 
-    <script src="app.js"></script>
+    <script src="script.js"></script>
 </body>
 </html>
