@@ -1,5 +1,5 @@
 :root {
-    --bg-dark: #000000; /* Hitam pekat sesuai screenshot */
+    --bg-dark: #000000;
     --card-dark: #171717;
     --text-main: #ffffff;
     --text-muted: #b4b4b4;
@@ -7,83 +7,70 @@
     --input-bg: #212121;
 }
 
-* { box-sizing: border-box; margin: 0; padding: 0; }
-
-body {
-    background-color: var(--bg-dark);
-    color: var(--text-main);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    height: 100vh;
-    display: flex;
-    overflow: hidden;
+* { 
+    box-sizing: border-box; 
+    margin: 0; 
+    padding: 0; 
+    /* Mencegah highlight biru saat klik di mobile */
+    -webkit-tap-highlight-color: transparent;
 }
 
-/* Sidebar Tersembunyi */
+html, body {
+    /* Mencegah body bergeser/terdorong ke atas saat keyboard aktif */
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+    position: fixed; 
+    background-color: var(--bg-dark);
+    color: var(--text-main);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    /* Menjaga font agar tidak membesar otomatis */
+    -webkit-text-size-adjust: 100%;
+}
+
+/* Sidebar */
 .sidebar {
     width: 260px;
+    height: 100%;
     background: #000;
     border-right: 1px solid #262626;
     display: flex;
     flex-direction: column;
-    transition: all 0.3s ease;
+    transition: transform 0.3s ease;
+    z-index: 1000;
 }
-.sidebar.hidden { margin-left: -260px; }
+.sidebar.hidden { transform: translateX(-260px); position: absolute; }
 
-/* Main Chat Area */
+/* Main Area */
 .main-area {
     flex: 1;
     display: flex;
     flex-direction: column;
-    position: relative;
     height: 100%;
+    position: relative;
+    /* Menangani area notch/poni pada HP modern */
+    padding-top: env(safe-area-inset-top);
 }
 
-/* Welcome Section di Tengah */
-.welcome-section {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-}
-.welcome-section h1 {
-    font-size: 24px;
-    font-weight: 600;
-    margin-bottom: 30px;
-}
-
-/* Sugesti Buttons ala ChatGPT */
-.suggestions {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-    max-width: 600px;
-    padding: 0 20px;
-}
-.suggest-btn {
-    background: transparent;
-    border: 1px solid #333;
-    padding: 12px 16px;
-    border-radius: 12px;
-    color: var(--text-main);
-    font-size: 14px;
-    cursor: pointer;
+/* Header - Harus Tetap Kelihatan (Sticky) */
+.top-header {
+    height: 60px;
     display: flex;
     align-items: center;
-    gap: 10px;
+    justify-content: space-between;
+    padding: 0 16px;
+    background: var(--bg-dark);
+    z-index: 900;
+    flex-shrink: 0;
 }
 
-/* Chat Wrapper */
+/* Chat Wrapper - Area yang boleh scroll */
 .chat-wrapper {
     flex: 1;
     overflow-y: auto;
-    padding-bottom: 120px; /* Biar gak ketutup input bar */
-}
-
-.message-row {
-    width: 100%;
-    padding: 24px 20px;
+    /* Menjaga scroll tetap smooth di iOS */
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 100px;
 }
 
 .msg-inner {
@@ -91,81 +78,89 @@ body {
     margin: 0 auto;
     display: flex;
     gap: 16px;
+    padding: 20px;
 }
 
-.avatar {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-}
-.avatar.ai { background: transparent; border: 1px solid #444; }
-.avatar.user { background: #5436da; color: white; font-size: 12px; }
-
-.content {
-    font-size: 16px;
-    line-height: 1.6;
-    color: #ececec;
-    padding-top: 4px;
+/* ANTI-ZOOM & TEGAK: Aturan untuk Input */
+.input-box-wrapper input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: white;
+    padding: 10px 5px;
+    /* WAJIB 16px agar Chrome Mobile tidak auto-zoom */
+    font-size: 16px !important;
+    outline: none;
+    font-family: inherit;
 }
 
-/* Floating Input Bar ala Screenshot */
+/* Floating Input Container */
 .input-container {
     position: absolute;
-    bottom: 20px;
+    bottom: 0;
     left: 0;
     right: 0;
-    padding: 0 20px;
+    padding: 10px 16px 30px 16px; /* Padding bawah extra untuk safe area */
+    background: linear-gradient(transparent, var(--bg-dark) 30%);
+    flex-shrink: 0;
 }
 
 .input-box-wrapper {
     max-width: 768px;
     margin: 0 auto;
     background: var(--input-bg);
-    border-radius: 26px;
+    border-radius: 28px;
     display: flex;
     align-items: center;
-    padding: 8px 12px;
+    padding: 6px 12px;
     border: 1px solid #333;
 }
 
-.input-box-wrapper input {
-    flex: 1;
-    background: transparent;
-    border: none;
-    color: white;
-    padding: 10px 15px;
-    font-size: 16px;
-    outline: none;
+/* Elemen Lainnya */
+.avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    flex-shrink: 0;
 }
-
-.btn-action {
-    background: transparent;
-    border: none;
-    color: #b4b4b4;
-    padding: 8px;
-    cursor: pointer;
-}
+.avatar.ai { border: 1px solid #444; }
+.avatar.user { background: #5436da; color: white; display: flex; align-items: center; justify-content: center; font-size: 12px; }
 
 .btn-send-round {
     background: white;
     color: black;
-    width: 32px;
-    height: 32px;
+    width: 34px;
+    height: 34px;
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
     border: none;
     cursor: pointer;
+    flex-shrink: 0;
+    transition: transform 0.1s ease;
+}
+.btn-send-round:active { transform: scale(0.9); }
+
+/* Welcome Section */
+.welcome-section {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
 }
 
 /* Animasi */
-.fade-up { animation: fadeUp 0.4s ease forwards; }
+.fade-up { animation: fadeUp 0.3s ease-out forwards; }
 @keyframes fadeUp {
     from { opacity: 0; transform: translateY(10px); }
     to { opacity: 1; transform: translateY(0); }
+}
+
+/* Responsive Mobile */
+@media (max-width: 768px) {
+    .sidebar { position: absolute; transform: translateX(-100%); }
+    .sidebar.active { transform: translateX(0); }
 }
