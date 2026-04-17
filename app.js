@@ -10,32 +10,58 @@ const removeImg = document.getElementById('removeImg');
 
 let currentImageBase64 = null;
 
+// --- EFEK KETIK (TYPING EFFECT) ---
+function typeWriter(element, text, speed = 10) {
+    let i = 0;
+    element.innerHTML = "";
+    function type() {
+        if (i < text.length) {
+            element.innerHTML += text.charAt(i);
+            i++;
+            chatArea.scrollTo({ top: chatArea.scrollHeight });
+            setTimeout(type, speed);
+        }
+    }
+    type();
+}
+
 // --- RENDER PESAN ---
-function appendMessage(role, text, imageUrl = null) {
+function appendMessage(role, text, imageUrl = null, isNewAI = false) {
     const wrapper = document.createElement('div');
     wrapper.className = `flex w-full mb-8 message-in ${role === 'user' ? 'justify-end' : 'justify-start'}`;
     
     let html = "";
     if (role === 'user') {
-        html = `<div class="user-bubble max-w-[85%] text-[15px]">`;
-        if (imageUrl) html += `<img src="${imageUrl}" class="w-48 h-48 object-cover rounded-lg mb-2 border border-white/10 shadow-lg">`;
+        html = `<div class="user-bubble max-w-[85%] text-[15px] shadow-sm">`;
+        if (imageUrl) html += `<img src="${imageUrl}" class="w-48 h-48 object-cover rounded-xl mb-3 border border-white/10 shadow-lg">`;
         html += `${text}</div>`;
+        wrapper.innerHTML = html;
     } else {
+        const uniqueId = 'ai-' + Date.now();
         html = `
-            <div class="flex gap-4 max-w-full">
-                <div class="w-8 h-8 rounded-full bg-[#2f2f2f] flex-shrink-0 flex items-center justify-center border border-white/5 shadow-md">
-                    <i class="fas fa-robot text-[12px] text-slate-400"></i>
+            <div class="flex gap-4 max-w-[90%]">
+                <div class="w-9 h-9 rounded-full bg-gradient-to-tr from-[#1e1e1e] to-[#2f2f2f] flex-shrink-0 flex items-center justify-center border border-white/10 shadow-md">
+                    <i class="fas fa-bolt text-[14px] text-yellow-500"></i>
                 </div>
-                <div class="ai-bubble text-[15px] leading-relaxed text-[#ececec]">${text}</div>
+                <div id="${uniqueId}" class="ai-bubble text-[15px] leading-relaxed text-[#ececec] pt-1"></div>
             </div>`;
+        wrapper.innerHTML = html;
+        chatArea.appendChild(wrapper);
+        
+        const aiContainer = document.getElementById(uniqueId);
+        if (isNewAI) {
+            typeWriter(aiContainer, text);
+        } else {
+            aiContainer.innerText = text;
+        }
+        return; // Keluar karena sudah append di dalam
     }
     
-    wrapper.innerHTML = html;
     chatArea.appendChild(wrapper);
     chatArea.scrollTo({ top: chatArea.scrollHeight, behavior: 'smooth' });
 }
 
-// --- GAMBAR/KAMERA ---
+// --- LOGIKA GAMBAR ---
 cameraBtn.addEventListener('click', () => fileInput.click());
 fileInput.addEventListener('change', function() {
     const file = this.files[0];
@@ -62,53 +88,59 @@ if (Recognition) {
     micBtn.addEventListener('click', () => {
         rec.start();
         micBtn.classList.add('mic-active');
+        userInput.placeholder = "Mendengarkan Bos...";
     });
     rec.onresult = (e) => {
         userInput.value = e.results[0][0].transcript;
         micBtn.classList.remove('mic-active');
-        chatForm.dispatchEvent(new Event('submit')); // AUTO KIRIM
+        userInput.placeholder = "Tanya Riksan AI...";
+        chatForm.dispatchEvent(new Event('submit'));
     };
-    rec.onerror = () => micBtn.classList.remove('mic-active');
+    rec.onerror = () => {
+        micBtn.classList.remove('mic-active');
+        userInput.placeholder = "Tanya Riksan AI...";
+    };
 }
 
-// --- SUBMIT ---
+// --- SUBMIT KE GROQ ---
 chatForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const text = userInput.value.trim();
     if (!text && !currentImageBase64) return;
 
-    appendMessage('user', text || "Analisis gambar...", currentImageBase64);
+    appendMessage('user', text || "Analisis data...", currentImageBase64);
     
     const imgToSend = currentImageBase64;
     userInput.value = '';
     imagePreview.classList.add('hidden');
     currentImageBase64 = null;
 
+    // Loading State yang lebih keren
     const loaderId = 'ld-' + Date.now();
     const loader = document.createElement('div');
     loader.id = loaderId;
-    loader.className = 'text-slate-500 text-xs animate-pulse ml-12 mb-8';
-    loader.innerText = 'Riksan AI sedang berpikir...';
+    loader.className = 'flex gap-2 items-center text-slate-500 text-xs ml-14 mb-8';
+    loader.innerHTML = `<div class="w-1.5 h-1.5 bg-yellow-500 rounded-full animate-bounce"></div> Riksan AI sedang memproses...`;
     chatArea.appendChild(loader);
+    chatArea.scrollTo({ top: chatArea.scrollHeight, behavior: 'smooth' });
 
     try {
         const res = await fetch('/api/ai', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message: text, imageBase64: imgToSend })
+            body: JSON.stringify({ message: text }) // Groq Free biasanya belum support image via API fetch biasa tanpa library
         });
         
         const data = await res.json();
         if(document.getElementById(loaderId)) document.getElementById(loaderId).remove();
 
-        // AMBIL 'reply' SESUAI BACKEND
         if (data.reply) {
-            appendMessage('ai', data.reply);
+            appendMessage('ai', data.reply, null, true); // true untuk efek mengetik
         } else {
-            appendMessage('ai', 'Error: Gagal ambil respon, Bos.');
+            appendMessage('ai', 'Maaf Bos, Groq lagi sibuk. Coba lagi bentar!');
         }
     } catch (err) {
         if(document.getElementById(loaderId)) document.getElementById(loaderId).remove();
-        appendMessage('ai', 'Koneksi error, coba redeploy Vercel.');
+        appendMessage('ai', 'Koneksi error, pastikan API Key Groq sudah benar di Vercel.');
     }
 });
