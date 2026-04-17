@@ -1,74 +1,89 @@
-const input = document.getElementById("input");
-const chat = document.getElementById("chat");
-const fileInput = document.getElementById("file-input");
-const imagePreviewContainer = document.getElementById("image-preview-container");
-const imagePreview = document.getElementById("image-preview");
-let selectedImageBase64 = null;
+const chatForm = document.getElementById('chatForm');
+const userInput = document.getElementById('userInput');
+const chatArea = document.getElementById('chatArea');
+const micBtn = document.getElementById('micBtn');
+const cameraBtn = document.getElementById('cameraBtn');
+const fileInput = document.getElementById('fileInput');
 
-// Fungsi untuk pratinjau gambar
+let isVoiceOutputEnabled = true;
+
+// --- FITUR SUARA (SPEECH TO TEXT) ---
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+if (SpeechRecognition) {
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'id-ID';
+
+    micBtn.addEventListener('click', () => {
+        recognition.start();
+        micBtn.classList.add('mic-active');
+    });
+
+    recognition.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        userInput.value = transcript;
+        micBtn.classList.remove('mic-active');
+    };
+
+    recognition.onerror = () => micBtn.classList.remove('mic-active');
+}
+
+// --- FITUR SUARA (TEXT TO SPEECH) ---
+function speak(text) {
+    if (!isVoiceOutputEnabled) return;
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'id-ID';
+    utterance.rate = 1.0;
+    window.speechSynthesis.speak(utterance);
+}
+
+// --- FITUR KAMERA ---
+cameraBtn.addEventListener('click', () => {
+    fileInput.click(); // Cara termudah untuk semua perangkat: upload/kamera
+});
+
 fileInput.addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (file) {
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-            selectedImageBase64 = ev.target.result;
-            imagePreview.src = selectedImageBase64;
-            imagePreviewContainer.classList.remove("image-preview-hidden");
-        };
-        reader.readAsDataURL(file);
+        alert('Foto "' + file.name + '" terpilih. Groq akan memproses teksnya.');
     }
 });
 
-function clearImage() {
-    selectedImageBase64 = null;
-    fileInput.value = "";
-    imagePreviewContainer.classList.add("image-preview-hidden");
+// --- CHAT LOGIC ---
+function appendMessage(role, text) {
+    const msgDiv = document.createElement('div');
+    msgDiv.className = `flex ${role === 'user' ? 'justify-end' : 'justify-start'} message-in mb-6`;
+    
+    msgDiv.innerHTML = `
+        <div class="${role === 'user' ? 'user-bubble rounded-tr-none' : 'ai-bubble rounded-tl-none'} max-w-[85%] p-4 rounded-2xl border-white/5">
+            <p class="text-sm leading-relaxed">${text}</p>
+        </div>
+    `;
+    chatArea.appendChild(msgDiv);
+    chatArea.scrollTop = chatArea.scrollHeight;
+    
+    if (role === 'ai') speak(text);
 }
 
-async function askAI() {
-    const text = input.value.trim();
-    if (!text && !selectedImageBase64) return;
+chatForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const msg = userInput.value.trim();
+    if (!msg) return;
 
-    // Tampilkan pesan user ke layar
-    let userMsgHTML = `<div class="message user-message"><div class="message-content">`;
-    if (text) userMsgHTML += `<p>${text}</p>`;
-    if (selectedImageBase64) userMsgHTML += `<img src="${selectedImageBase64}" style="max-width:100%; border-radius:8px; margin-top:5px;">`;
-    userMsgHTML += `</div></div>`;
-    
-    chat.innerHTML += userMsgHTML;
-    chat.scrollTop = chat.scrollHeight;
-
-    const currentImg = selectedImageBase64;
-    input.value = "";
-    clearImage();
+    appendMessage('user', msg);
+    userInput.value = '';
 
     try {
-        const tempId = "ai-" + Date.now();
-        chat.innerHTML += `<div id="${tempId}" class="message ai-message"><div class="message-content">Riksan AI sedang berpikir...</div></div>`;
-        chat.scrollTop = chat.scrollHeight;
-
-        const formData = new URLSearchParams();
-        formData.append("message", text);
-        if (currentImg) formData.append("image", currentImg);
-
-        const res = await fetch("/api/ai", {
-            method: "POST",
-            body: formData
+        const res = await fetch('/api/ai', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ message: msg })
         });
-
         const data = await res.json();
-        const aiDiv = document.getElementById(tempId).querySelector(".message-content");
-
-        if (data.candidates && data.candidates[0].content) {
-            aiDiv.innerText = data.candidates[0].content.parts[0].text;
-        } else {
-            const errMsg = data.error ? data.error.message : "Gagal koneksi API.";
-            aiDiv.innerHTML = `<span style="color:red">Error: ${errMsg}</span>`;
+        
+        if (data.candidates) {
+            appendMessage('ai', data.candidates[0].content.parts[0].text);
         }
-    } catch (e) {
-        console.error(e);
+    } catch (err) {
+        appendMessage('ai', 'Error koneksi, Bos.');
     }
-    chat.scrollTop = chat.scrollHeight;
-}
-
-function handleKeyPress(e) { if (e.key === 'Enter') askAI(); }
+});
