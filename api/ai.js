@@ -1,34 +1,45 @@
 export default async function handler(req, res) {
-    // 1. Ambil API Key dari Environment Variable Vercel
     const apiKey = process.env.GROQ_API_KEY;
 
-    if (req.method !== 'POST') {
-        return res.status(405).json({ error: "Method Not Allowed" });
-    }
+    // Header wajib 2026 agar tidak kena blokir CORS
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+    if (req.method === 'OPTIONS') return res.status(200).end();
 
     try {
-        // 2. Ambil data dari app.js (support JSON)
         const { message, imageBase64 } = req.body;
 
-        if (!message && !imageBase64) {
-            return res.status(400).json({ error: "Pesan kosong euy!" });
+        // Validasi API Key
+        if (!apiKey) {
+            return res.status(200).json({
+                candidates: [{ content: { parts: [{ text: "Waduh Bos, API Key Groq belum dipasang di Vercel!" }] } }]
+            });
         }
 
-        // 3. Tentukan model (Gunakan llama-3.3-70b untuk kualitas terbaik)
-        const modelName = imageBase64 ? "llama-3.2-11b-vision-preview" : "llama-3.3-70b-versatile";
+        // --- PEMILIHAN MODEL 2026 ---
+        // Jika ada gambar, kita coba pakai model vision yang masih tersedia.
+        // Jika teks saja, pakai Llama 3.3 70B (Terbaik di kelasnya).
+        let modelId = "llama-3.3-70b-versatile"; 
+        let contentArray = [];
 
-        // 4. Susun Payload sesuai dokumentasi Groq
-        const content = [];
-        content.push({ type: "text", text: message || "Jelaskan gambar ini." });
-        
+        // 1. Masukkan Teks
+        contentArray.push({
+            type: "text",
+            text: message || "Jelaskan apa yang kamu lihat di gambar ini."
+        });
+
+        // 2. Masukkan Gambar jika ada (Format API 2026)
         if (imageBase64) {
-            content.push({
+            modelId = "llama-3.2-90b-vision-preview"; // Menggunakan versi 90B yang lebih stabil di 2026
+            contentArray.push({
                 type: "image_url",
                 image_url: { url: imageBase64 }
             });
         }
 
-        // 5. Eksekusi Fetch ke Groq
+        // --- FETCH KE ENDPOINT GROQ V1 ---
         const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
             method: "POST",
             headers: {
@@ -36,13 +47,13 @@ export default async function handler(req, res) {
                 "Content-Type": "application/json"
             },
             body: JSON.stringify({
-                model: modelName,
+                model: modelId,
                 messages: [
                     { 
                         role: "system", 
-                        content: "Kamu adalah Riksan AI, asisten pribadi Riksan (CTO SawargiPay). Jawablah dengan cerdas, solutif, dan gaya bahasa profesional yang ramah." 
+                        content: "Kamu adalah Riksan AI, asisten cerdas buatan Riksan. Kamu sangat ahli dalam menganalisis data dan gambar. Jawab dengan gaya santai tapi berkelas." 
                     },
-                    { role: "user", content: content }
+                    { role: "user", content: contentArray }
                 ],
                 temperature: 0.7,
                 max_tokens: 1024
@@ -51,7 +62,7 @@ export default async function handler(req, res) {
 
         const data = await response.json();
 
-        // 6. Format Respon yang Dibutuhkan app.js kamu
+        // --- HANDLING RESPON ---
         if (data.choices && data.choices[0]) {
             res.status(200).json({
                 candidates: [{
@@ -59,15 +70,16 @@ export default async function handler(req, res) {
                 }]
             });
         } else {
-            // Jika ada error dari Groq (Misal: API Key Salah/Limit)
+            // Jika model Vision sedang gangguan/decommissioned lagi
+            const errorMsg = data.error?.message || "Terjadi kesalahan pada model API.";
             res.status(200).json({
                 candidates: [{
-                    content: { parts: [{ text: `Error: ${data.error?.message || "Gagal mendapatkan respon."}` }] }
+                    content: { parts: [{ text: `Gagal respon: ${errorMsg}` }] }
                 }]
             });
         }
 
     } catch (error) {
-        res.status(500).json({ error: "Internal Server Error: " + error.message });
+        res.status(500).json({ error: "Server Error: " + error.message });
     }
 }
