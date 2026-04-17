@@ -1,7 +1,19 @@
 let currentChatId = Date.now();
-let chatHistory = JSON.parse(localStorage.getItem('riksen_local_db')) || {};
+let chatHistory = JSON.parse(localStorage.getItem('riksen_db_v2')) || {};
 
 document.addEventListener('DOMContentLoaded', () => {
+    // Tombol Menu / Ellipsis Toggle
+    const menuBtn = document.getElementById('menu-btn');
+    const sidebar = document.getElementById('sidebar');
+    
+    menuBtn.addEventListener('click', () => {
+        if (window.innerWidth > 768) {
+            sidebar.classList.toggle('hidden');
+        } else {
+            sidebar.classList.toggle('active');
+        }
+    });
+
     initApp();
 });
 
@@ -9,7 +21,6 @@ function initApp() {
     renderHistory();
     const ids = Object.keys(chatHistory);
     if (ids.length > 0) {
-        // Load chat terakhir
         loadChat(ids.sort().pop());
     } else {
         showWelcome();
@@ -17,11 +28,18 @@ function initApp() {
 }
 
 function showWelcome() {
-    document.getElementById('chat-box').innerHTML = `
-        <div style="height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-center; gap: 10px;">
-            <h1 style="font-size: 40px; font-weight: 500; color: white;">Halo Bos Riksan</h1>
-            <p style="color: #80868b; font-size: 18px;">Sebaiknya kita mulai dari mana?</p>
-        </div>`;
+    const box = document.getElementById('chat-box');
+    box.innerHTML = `<div class="welcome-screen"><h1>Halo, ada yang bisa saya bantu?</h1></div>`;
+}
+
+function newChat() {
+    currentChatId = Date.now();
+    document.getElementById('chat-box').innerHTML = '';
+    document.getElementById('user-input').value = '';
+    showWelcome();
+    renderHistory();
+    // Tutup sidebar di mobile jika klik new chat
+    if (window.innerWidth <= 768) document.getElementById('sidebar').classList.remove('active');
 }
 
 async function sendMessage() {
@@ -29,15 +47,14 @@ async function sendMessage() {
     const msg = input.value.trim();
     if (!msg) return;
 
-    // Bersihkan welcome screen saat mulai chat
-    if (document.querySelector('h1')) {
+    if (document.querySelector('.welcome-screen')) {
         document.getElementById('chat-box').innerHTML = '';
     }
 
     appendMessage('user', msg);
     input.value = '';
 
-    const loadingId = addLoadingBubble();
+    const loadId = addLoading();
 
     try {
         const response = await fetch('/api/ai', {
@@ -47,59 +64,44 @@ async function sendMessage() {
         });
         const data = await response.json();
         
-        document.getElementById(loadingId).remove();
+        document.getElementById(loadId).remove();
         appendMessage('ai', data.reply);
-        saveToHistory(currentChatId, msg, data.reply);
-
-    } catch (err) {
-        document.getElementById(loadingId).innerHTML = "Koneksi ke server pusat terganggu, Bos.";
+        saveChat(currentChatId, msg, data.reply);
+    } catch (e) {
+        document.getElementById(loadId).innerText = "Gagal memuat respon.";
     }
 }
 
 function appendMessage(role, text) {
-    const chatBox = document.getElementById('chat-box');
-    const msgDiv = document.createElement('div');
-    msgDiv.className = 'message';
+    const box = document.getElementById('chat-box');
+    const div = document.createElement('div');
+    div.className = `message ${role}-msg`;
     
-    // Icon Style ala Gemini/ChatGPT
-    const icon = role === 'user' ? 
-        '<div class="message-icon user-icon">R</div>' : 
-        '<div class="message-icon ai-icon">✨</div>';
+    const avatar = role === 'user' ? 
+        '<div class="avatar user-avatar">R</div>' : 
+        '<div class="avatar ai-avatar">✨</div>';
 
-    msgDiv.innerHTML = `
-        ${icon}
-        <div class="content pt-1">
-            ${text.replace(/\n/g, '<br>')}
-        </div>
-    `;
-    
-    chatBox.appendChild(msgDiv);
-    chatBox.scrollTop = chatBox.scrollHeight;
+    div.innerHTML = `${avatar}<div class="content">${text.replace(/\n/g, '<br>')}</div>`;
+    box.appendChild(div);
+    box.scrollTop = box.scrollHeight;
 }
 
-function saveToHistory(id, userMsg, aiMsg) {
-    if (!chatHistory[id]) {
-        // Ambil 4 kata pertama sebagai judul history
-        const title = userMsg.split(' ').slice(0, 4).join(' ') + '...';
-        chatHistory[id] = { title: title, chats: [] };
-    }
-    chatHistory[id].chats.push({ user: userMsg, ai: aiMsg });
-    localStorage.setItem('riksen_local_db', JSON.stringify(chatHistory));
+function saveChat(id, u, a) {
+    if (!chatHistory[id]) chatHistory[id] = { title: u.substring(0, 30), chats: [] };
+    chatHistory[id].chats.push({ user: u, ai: a });
+    localStorage.setItem('riksen_db_v2', JSON.stringify(chatHistory));
     renderHistory();
 }
 
 function renderHistory() {
     const list = document.getElementById('history-list');
     list.innerHTML = '';
-    
-    // Urutkan dari yang terbaru (ID terbesar)
     Object.keys(chatHistory).sort().reverse().forEach(id => {
-        const isActive = id == currentChatId;
-        const item = document.createElement('div');
-        item.className = `history-item p-3 ${isActive ? 'active-chat' : ''}`;
-        item.innerHTML = `💬 ${chatHistory[id].title}`;
-        item.onclick = () => loadChat(id);
-        list.appendChild(item);
+        const div = document.createElement('div');
+        div.className = `history-item ${id == currentChatId ? 'active-history' : ''}`;
+        div.innerText = chatHistory[id].title;
+        div.onclick = () => loadChat(id);
+        list.appendChild(div);
     });
 }
 
@@ -111,19 +113,13 @@ function loadChat(id) {
         appendMessage('ai', c.ai);
     });
     renderHistory();
+    if (window.innerWidth <= 768) document.getElementById('sidebar').classList.remove('active');
 }
 
-function addLoadingBubble() {
-    const id = 'load-' + Date.now();
-    const chatBox = document.getElementById('chat-box');
-    chatBox.innerHTML += `<div id="${id}" class="message items-center gap-4"><div class="message-icon ai-icon animate-spin">✨</div><div class="text-gray-500 italic text-sm">Berpikir...</div></div>`;
-    chatBox.scrollTop = chatBox.scrollHeight;
+function addLoading() {
+    const id = 'l-' + Date.now();
+    const box = document.getElementById('chat-box');
+    box.innerHTML += `<div id="${id}" class="message"><div class="avatar ai-avatar">✨</div><div class="content italic text-gray-500">Mengetik...</div></div>`;
+    box.scrollTop = box.scrollHeight;
     return id;
-}
-
-function newChat() {
-    currentChatId = Date.now();
-    document.getElementById('chat-box').innerHTML = '';
-    showWelcome();
-    renderHistory();
 }
