@@ -1,146 +1,97 @@
-const chatForm = document.getElementById('chatForm');
-const userInput = document.getElementById('userInput');
-const chatArea = document.getElementById('chatArea');
-const fileInput = document.getElementById('fileInput');
-const cameraBtn = document.getElementById('cameraBtn');
-const micBtn = document.getElementById('micBtn');
-const imagePreview = document.getElementById('imagePreview');
-const previewImg = document.getElementById('previewImg');
-const removeImg = document.getElementById('removeImg');
+let currentChatId = Date.now();
+let chatHistory = JSON.parse(localStorage.getItem('riksen_chats')) || {};
 
-let currentImageBase64 = null;
-
-// --- EFEK KETIK (TYPING EFFECT) ---
-function typeWriter(element, text, speed = 10) {
-    let i = 0;
-    element.innerHTML = "";
-    function type() {
-        if (i < text.length) {
-            element.innerHTML += text.charAt(i);
-            i++;
-            chatArea.scrollTo({ top: chatArea.scrollHeight });
-            setTimeout(type, speed);
-        }
-    }
-    type();
-}
-
-// --- RENDER PESAN ---
-function appendMessage(role, text, imageUrl = null, isNewAI = false) {
-    const wrapper = document.createElement('div');
-    wrapper.className = `flex w-full mb-8 message-in ${role === 'user' ? 'justify-end' : 'justify-start'}`;
-    
-    let html = "";
-    if (role === 'user') {
-        html = `<div class="user-bubble max-w-[85%] text-[15px] shadow-sm">`;
-        if (imageUrl) html += `<img src="${imageUrl}" class="w-48 h-48 object-cover rounded-xl mb-3 border border-white/10 shadow-lg">`;
-        html += `${text}</div>`;
-        wrapper.innerHTML = html;
-    } else {
-        const uniqueId = 'ai-' + Date.now();
-        html = `
-            <div class="flex gap-4 max-w-[90%]">
-                <div class="w-9 h-9 rounded-full bg-gradient-to-tr from-[#1e1e1e] to-[#2f2f2f] flex-shrink-0 flex items-center justify-center border border-white/10 shadow-md">
-                    <i class="fas fa-bolt text-[14px] text-yellow-500"></i>
-                </div>
-                <div id="${uniqueId}" class="ai-bubble text-[15px] leading-relaxed text-[#ececec] pt-1"></div>
-            </div>`;
-        wrapper.innerHTML = html;
-        chatArea.appendChild(wrapper);
-        
-        const aiContainer = document.getElementById(uniqueId);
-        if (isNewAI) {
-            typeWriter(aiContainer, text);
-        } else {
-            aiContainer.innerText = text;
-        }
-        return; // Keluar karena sudah append di dalam
-    }
-    
-    chatArea.appendChild(wrapper);
-    chatArea.scrollTo({ top: chatArea.scrollHeight, behavior: 'smooth' });
-}
-
-// --- LOGIKA GAMBAR ---
-cameraBtn.addEventListener('click', () => fileInput.click());
-fileInput.addEventListener('change', function() {
-    const file = this.files[0];
-    if (file) {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            currentImageBase64 = e.target.result;
-            previewImg.src = currentImageBase64;
-            imagePreview.classList.remove('hidden');
-        };
-        reader.readAsDataURL(file);
-    }
-});
-removeImg.addEventListener('click', () => {
-    currentImageBase64 = null;
-    imagePreview.classList.add('hidden');
+document.addEventListener('DOMContentLoaded', () => {
+    const ids = Object.keys(chatHistory);
+    if (ids.length > 0) loadChat(ids.sort().pop()); else showWelcome();
+    renderHistory();
 });
 
-// --- MIC (NGOMONG LANGSUNG KIRIM) ---
-const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-if (Recognition) {
-    const rec = new Recognition();
-    rec.lang = 'id-ID';
-    micBtn.addEventListener('click', () => {
-        rec.start();
-        micBtn.classList.add('mic-active');
-        userInput.placeholder = "Mendengarkan Bos...";
-    });
-    rec.onresult = (e) => {
-        userInput.value = e.results[0][0].transcript;
-        micBtn.classList.remove('mic-active');
-        userInput.placeholder = "Tanya Riksan AI...";
-        chatForm.dispatchEvent(new Event('submit'));
-    };
-    rec.onerror = () => {
-        micBtn.classList.remove('mic-active');
-        userInput.placeholder = "Tanya Riksan AI...";
-    };
+function showWelcome() {
+    document.getElementById('chat-box').innerHTML = `
+        <div class="h-full flex flex-col items-center justify-center space-y-4 pt-20">
+            <h1 class="text-5xl font-medium bg-gradient-to-r from-blue-400 to-red-400 bg-clip-text text-transparent">Halo, Bos Riksan</h1>
+            <p class="text-gray-500 text-xl">Ada yang bisa saya bantu hari ini?</p>
+        </div>`;
 }
 
-// --- SUBMIT KE GROQ ---
-chatForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const text = userInput.value.trim();
-    if (!text && !currentImageBase64) return;
+function newChat() {
+    currentChatId = Date.now();
+    document.getElementById('chat-box').innerHTML = '';
+    showWelcome();
+    renderHistory();
+}
 
-    appendMessage('user', text || "Analisis data...", currentImageBase64);
+async function sendMessage() {
+    const input = document.getElementById('user-input');
+    const msg = input.value.trim();
+    if (!msg) return;
+
+    if (document.querySelector('.text-transparent')) document.getElementById('chat-box').innerHTML = '';
     
-    const imgToSend = currentImageBase64;
-    userInput.value = '';
-    imagePreview.classList.add('hidden');
-    currentImageBase64 = null;
-
-    // Loading State yang lebih keren
-    const loaderId = 'ld-' + Date.now();
-    const loader = document.createElement('div');
-    loader.id = loaderId;
-    loader.className = 'flex gap-2 items-center text-slate-500 text-xs ml-14 mb-8';
-    loader.innerHTML = `<div class="w-1.5 h-1.5 bg-yellow-500 rounded-full animate-bounce"></div> Riksan AI sedang memproses...`;
-    chatArea.appendChild(loader);
-    chatArea.scrollTo({ top: chatArea.scrollHeight, behavior: 'smooth' });
+    appendMessage('user', msg);
+    input.value = '';
+    const loadId = addLoading();
 
     try {
         const res = await fetch('/api/ai', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message: text }) // Groq Free biasanya belum support image via API fetch biasa tanpa library
+            body: JSON.stringify({ message: msg })
         });
-        
         const data = await res.json();
-        if(document.getElementById(loaderId)) document.getElementById(loaderId).remove();
-
-        if (data.reply) {
-            appendMessage('ai', data.reply, null, true); // true untuk efek mengetik
-        } else {
-            appendMessage('ai', 'Maaf Bos, Groq lagi sibuk. Coba lagi bentar!');
-        }
-    } catch (err) {
-        if(document.getElementById(loaderId)) document.getElementById(loaderId).remove();
-        appendMessage('ai', 'Koneksi error, pastikan API Key Groq sudah benar di Vercel.');
+        document.getElementById(loadId).remove();
+        appendMessage('ai', data.reply);
+        saveChat(currentChatId, msg, data.reply);
+    } catch (e) {
+        document.getElementById(loadId).innerHTML = "Error koneksi server.";
     }
-});
+}
+
+function appendMessage(role, text) {
+    const box = document.getElementById('chat-box');
+    const div = document.createElement('div');
+    div.className = 'message';
+    const avatar = role === 'user' ? '<div class="avatar user-avatar">R</div>' : '<div class="avatar ai-avatar">✨</div>';
+    div.innerHTML = `${avatar}<div>${text.replace(/\n/g, '<br>')}</div>`;
+    box.appendChild(div);
+    box.scrollTop = box.scrollHeight;
+}
+
+function saveChat(id, u, a) {
+    if (!chatHistory[id]) chatHistory[id] = { title: u.substring(0, 25) + "...", chats: [] };
+    chatHistory[id].chats.push({ user: u, ai: a });
+    localStorage.setItem('riksen_chats', JSON.stringify(chatHistory));
+    renderHistory();
+}
+
+function renderHistory() {
+    const term = document.getElementById('search-history').value.toLowerCase();
+    const list = document.getElementById('history-list');
+    list.innerHTML = '';
+    Object.keys(chatHistory).reverse().forEach(id => {
+        if (chatHistory[id].title.toLowerCase().includes(term)) {
+            const div = document.createElement('div');
+            div.className = `history-item ${id == currentChatId ? 'active-chat' : ''}`;
+            div.innerText = `💬 ${chatHistory[id].title}`;
+            div.onclick = () => loadChat(id);
+            list.appendChild(div);
+        }
+    });
+}
+
+function filterHistory() { renderHistory(); }
+
+function loadChat(id) {
+    currentChatId = id;
+    document.getElementById('chat-box').innerHTML = '';
+    chatHistory[id].chats.forEach(c => { appendMessage('user', c.user); appendMessage('ai', c.ai); });
+    renderHistory();
+}
+
+function addLoading() {
+    const id = 'l-' + Date.now();
+    const box = document.getElementById('chat-box');
+    box.innerHTML += `<div id="${id}" class="message"><div class="avatar ai-avatar animate-spin">✨</div><div class="text-gray-600">Mencari data Bloomberg...</div></div>`;
+    return id;
+}
