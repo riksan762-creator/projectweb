@@ -1,61 +1,57 @@
 export default async function handler(req, res) {
-    // 1. Ambil API Key dari Vercel Environment Variables
+    // 1. Ambil API Key dari Environment Variable Vercel
     const apiKey = process.env.GROQ_API_KEY;
 
-    // Setting Header agar tidak diblokir browser (CORS)
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
-    if (req.method === 'OPTIONS') return res.status(200).end();
-    if (req.method !== 'POST') return res.status(405).json({ error: "Gunakan POST" });
-
-    if (!apiKey) {
-        return res.status(200).json({ 
-            candidates: [{ content: { parts: [{ text: "Waduh Bos, GROQ_API_KEY belum dipasang di Vercel euy!" }] } }] 
-        });
+    if (req.method !== 'POST') {
+        return res.status(405).json({ error: "Method Not Allowed" });
     }
 
     try {
-        // 2. Baca data dari app.js
-        const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-        const { message, imageBase64 } = body;
+        // 2. Ambil data dari app.js (support JSON)
+        const { message, imageBase64 } = req.body;
 
-        // 3. Susun konten untuk model Vision
-        const userContent = [];
-        userContent.push({ type: "text", text: message || "Apa yang ada di gambar ini?" });
+        if (!message && !imageBase64) {
+            return res.status(400).json({ error: "Pesan kosong euy!" });
+        }
 
+        // 3. Tentukan model (Gunakan llama-3.3-70b untuk kualitas terbaik)
+        const modelName = imageBase64 ? "llama-3.2-11b-vision-preview" : "llama-3.3-70b-versatile";
+
+        // 4. Susun Payload sesuai dokumentasi Groq
+        const content = [];
+        content.push({ type: "text", text: message || "Jelaskan gambar ini." });
+        
         if (imageBase64) {
-            userContent.push({
+            content.push({
                 type: "image_url",
                 image_url: { url: imageBase64 }
             });
         }
 
-        // 4. Panggil API Groq (Pakai model 11B Vision yang paling stabil)
+        // 5. Eksekusi Fetch ke Groq
         const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
             method: "POST",
             headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${apiKey}`
+                "Authorization": `Bearer ${apiKey}`,
+                "Content-Type": "application/json"
             },
             body: JSON.stringify({
-                model: "llama-3.2-11b-vision-preview",
+                model: modelName,
                 messages: [
                     { 
                         role: "system", 
-                        content: "Kamu adalah Riksan AI, asisten pintar buatan Riksan. Kamu bisa melihat gambar dan bicara dalam Bahasa Indonesia yang santai tapi profesional." 
+                        content: "Kamu adalah Riksan AI, asisten pribadi Riksan (CTO SawargiPay). Jawablah dengan cerdas, solutif, dan gaya bahasa profesional yang ramah." 
                     },
-                    { role: "user", content: userContent }
+                    { role: "user", content: content }
                 ],
                 temperature: 0.7,
-                max_tokens: 1000
+                max_tokens: 1024
             })
         });
 
         const data = await response.json();
 
-        // 5. Kirim balik hasil ke Frontend
+        // 6. Format Respon yang Dibutuhkan app.js kamu
         if (data.choices && data.choices[0]) {
             res.status(200).json({
                 candidates: [{
@@ -63,16 +59,15 @@ export default async function handler(req, res) {
                 }]
             });
         } else {
-            console.error("Groq Error:", data);
+            // Jika ada error dari Groq (Misal: API Key Salah/Limit)
             res.status(200).json({
                 candidates: [{
-                    content: { parts: [{ text: "Maaf Bos, Groq lagi pening. Coba lagi ya!" }] }
+                    content: { parts: [{ text: `Error: ${data.error?.message || "Gagal mendapatkan respon."}` }] }
                 }]
             });
         }
 
     } catch (error) {
-        console.error("Server Crash:", error);
-        res.status(500).json({ error: "Server Error: " + error.message });
+        res.status(500).json({ error: "Internal Server Error: " + error.message });
     }
 }
