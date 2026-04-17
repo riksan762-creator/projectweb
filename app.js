@@ -1,85 +1,100 @@
-const chatForm = document.getElementById('chatForm');
-const userInput = document.getElementById('userInput');
-const chatArea = document.getElementById('chatArea');
-const micBtn = document.getElementById('micBtn');
-
-// --- FUNGSI UTAMA KIRIM PESAN ---
-async function sendMessage(e) {
-    if (e) e.preventDefault();
+document.addEventListener('DOMContentLoaded', () => {
+    const chatForm = document.getElementById('chatForm');
+    const userInput = document.getElementById('userInput');
+    const chatArea = document.getElementById('chatArea');
+    const micBtn = document.getElementById('micBtn');
+    const cameraBtn = document.getElementById('cameraBtn');
+    const fileInput = document.getElementById('fileInput');
     
-    const message = userInput.value.trim();
-    if (!message) return;
+    let voiceEnabled = true;
 
-    // Tampilkan pesan user di layar
-    appendMessage('user', message);
-    userInput.value = '';
-
-    // Buat element loading
-    const loadingId = 'loading-' + Date.now();
-    const loadingDiv = document.createElement('div');
-    loadingDiv.id = loadingId;
-    loadingDiv.className = 'flex justify-start mb-6 message-in';
-    loadingDiv.innerHTML = `<div class="ai-bubble p-4 rounded-2xl text-xs text-slate-500 italic"><i class="fas fa-circle-notch animate-spin mr-2"></i>Riksan AI sedang memproses...</div>`;
-    chatArea.appendChild(loadingDiv);
-    chatArea.scrollTop = chatArea.scrollHeight;
-
-    try {
-        const response = await fetch('/api/ai', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({ message: message })
-        });
-
-        const data = await response.json();
+    // Fungsi Tambah Pesan ke UI
+    function appendMessage(role, text) {
+        const msgDiv = document.createElement('div');
+        msgDiv.className = `flex ${role === 'user' ? 'justify-end' : 'justify-start'} message-anim mb-6`;
         
-        // Hapus loading
-        const loader = document.getElementById(loadingId);
-        if (loader) loader.remove();
+        msgDiv.innerHTML = `
+            <div class="${role === 'user' ? 'bg-blue-600 text-white' : 'bg-white/5 border border-white/10 text-slate-100'} max-w-[85%] p-4 rounded-[1.5rem] ${role === 'user' ? 'rounded-tr-none' : 'rounded-tl-none'}">
+                <p class="text-sm md:text-base leading-relaxed">${text}</p>
+            </div>
+        `;
+        
+        chatArea.appendChild(msgDiv);
+        chatArea.scrollTo({ top: chatArea.scrollHeight, behavior: 'smooth' });
 
-        if (data.candidates && data.candidates[0].content.parts[0].text) {
-            appendMessage('ai', data.candidates[0].content.parts[0].text);
-        } else {
-            appendMessage('ai', "Waduh, servernya lagi sibuk euy. Coba lagi ya!");
+        if (role === 'ai' && voiceEnabled) {
+            speakText(text);
         }
-    } catch (error) {
-        if (document.getElementById(loadingId)) document.getElementById(loadingId).remove();
-        appendMessage('ai', "Koneksi terputus. Coba cek internet kamu, Bos.");
-        console.error("Error:", error);
     }
-}
 
-// --- FUNGSI TAMPIL PESAN ---
-function appendMessage(role, text) {
-    const msgDiv = document.createElement('div');
-    msgDiv.className = `flex ${role === 'user' ? 'justify-end' : 'justify-start'} message-in mb-6`;
-    
-    const bubbleClass = role === 'user' ? 'user-bubble rounded-tr-none' : 'ai-bubble rounded-tl-none';
-    
-    msgDiv.innerHTML = `
-        <div class="${bubbleClass} max-w-[85%] p-4 rounded-2xl border border-white/5">
-            <p class="text-sm md:text-base leading-relaxed text-white">${text}</p>
-        </div>
-    `;
-    chatArea.appendChild(msgDiv);
-    chatArea.scrollTop = chatArea.scrollHeight;
-}
+    // Fungsi Kirim ke API Vercel
+    chatForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const text = userInput.value.trim();
+        if (!text) return;
 
-// Event Listeners
-chatForm.addEventListener('submit', sendMessage);
+        appendMessage('user', text);
+        userInput.value = '';
 
-// --- FITUR VOICE (SPEECH TO TEXT) ---
-const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-if (SpeechRecognition) {
-    const recognition = new SpeechRecognition();
-    recognition.lang = 'id-ID';
-    micBtn.addEventListener('click', () => {
-        recognition.start();
-        micBtn.classList.add('mic-active');
+        const loadingId = 'load-' + Date.now();
+        const loadingDiv = document.createElement('div');
+        loadingDiv.id = loadingId;
+        loadingDiv.className = 'flex justify-start mb-6';
+        loadingDiv.innerHTML = `<div class="bg-white/5 p-3 rounded-xl text-[10px] uppercase text-slate-500 italic"><i class="fas fa-circle-notch animate-spin mr-2"></i>Processing...</div>`;
+        chatArea.appendChild(loadingDiv);
+
+        try {
+            const response = await fetch('/api/ai', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams({ message: text })
+            });
+
+            const data = await response.json();
+            document.getElementById(loadingId).remove();
+
+            if (data.candidates) {
+                appendMessage('ai', data.candidates[0].content.parts[0].text);
+            }
+        } catch (err) {
+            if (document.getElementById(loadingId)) document.getElementById(loadingId).remove();
+            appendMessage('ai', "Gagal menghubungi server.");
+        }
     });
-    recognition.onresult = (event) => {
-        userInput.value = event.results[0][0].transcript;
-        micBtn.classList.remove('mic-active');
-        sendMessage(); // Langsung kirim setelah bicara
+
+    // Fitur Voice to Text (Mikrofon)
+    const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (SpeechRec) {
+        const recognition = new SpeechRec();
+        recognition.lang = 'id-ID';
+        
+        micBtn.onclick = () => {
+            recognition.start();
+            micBtn.classList.add('mic-active');
+        };
+
+        recognition.onresult = (e) => {
+            userInput.value = e.results[0][0].transcript;
+            micBtn.classList.remove('mic-active');
+            chatForm.dispatchEvent(new Event('submit'));
+        };
+        
+        recognition.onend = () => micBtn.classList.remove('mic-active');
+    }
+
+    // Fitur Text to Speech (Suara AI)
+    function speakText(text) {
+        window.speechSynthesis.cancel();
+        const msg = new SpeechSynthesisUtterance(text);
+        msg.lang = 'id-ID';
+        window.speechSynthesis.speak(msg);
+    }
+
+    // Kamera & Input File
+    cameraBtn.onclick = () => fileInput.click();
+    fileInput.onchange = () => {
+        if (fileInput.files.length > 0) {
+            appendMessage('ai', `File "${fileInput.files[0].name}" terdeteksi.`);
+        }
     };
-    recognition.onerror = () => micBtn.classList.remove('mic-active');
-}
+});
