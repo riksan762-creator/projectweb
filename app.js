@@ -1,38 +1,21 @@
 const chatForm = document.getElementById('chatForm');
 const userInput = document.getElementById('userInput');
 const chatArea = document.getElementById('chatArea');
-const fileInput = document.getElementById('fileInput');
-const cameraBtn = document.getElementById('cameraBtn');
-const micBtn = document.getElementById('micBtn'); // Pastikan ada tombol ID micBtn di HTML
-const imagePreview = document.getElementById('imagePreview');
-const previewImg = document.getElementById('previewImg');
-const removeImg = document.getElementById('removeImg');
+const micBtn = document.getElementById('micBtn'); // Pastikan ID di HTML: micBtn
 
-let currentImageBase64 = null;
-
-// Fungsi Tampilkan Pesan
-function appendMessage(role, text, imageUrl = null) {
+// 1. Fungsi Tampilkan Chat
+function appendMessage(role, text) {
     const wrapper = document.createElement('div');
-    wrapper.className = `flex w-full mb-6 ${role === 'user' ? 'justify-end' : 'justify-start'}`;
-    
-    let content = role === 'user' ? 
-        `<div class="bg-blue-600 text-white p-3 rounded-2xl max-w-[80%] shadow-lg">
-            ${imageUrl ? `<img src="${imageUrl}" class="w-48 rounded-lg mb-2 border border-white/20">` : ''}
+    wrapper.className = `flex w-full mb-4 ${role === 'user' ? 'justify-end' : 'justify-start'}`;
+    wrapper.innerHTML = `
+        <div class="${role === 'user' ? 'bg-blue-600' : 'bg-gray-800'} text-white p-3 rounded-2xl max-w-[85%] shadow-md">
             <p class="text-sm">${text}</p>
-        </div>` :
-        `<div class="flex gap-3 max-w-[85%]">
-            <div class="w-9 h-9 rounded-full bg-gray-700 flex items-center justify-center text-[10px] text-white font-bold border border-gray-600">AI</div>
-            <div class="bg-gray-800 text-gray-100 p-3 rounded-2xl shadow-md border border-gray-700">
-                <p class="text-sm leading-relaxed">${text}</p>
-            </div>
         </div>`;
-    
-    wrapper.innerHTML = content;
     chatArea.appendChild(wrapper);
     chatArea.scrollTo({ top: chatArea.scrollHeight, behavior: 'smooth' });
 }
 
-// Fitur Suara Ke Teks (Otomatis Kirim)
+// 2. Fitur Mic (Ngomong -> Teks -> Kirim)
 const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 if (Recognition) {
     const rec = new Recognition();
@@ -44,61 +27,38 @@ if (Recognition) {
     });
 
     rec.onresult = (e) => {
-        userInput.value = e.results[0][0].transcript;
+        const hasilSuara = e.results[0][0].transcript;
+        userInput.value = hasilSuara;
         micBtn.classList.remove('bg-red-500', 'animate-pulse');
-        // LANGSUNG KIRIM OTOMATIS
+        
+        // OTOMATIS KIRIM
         chatForm.dispatchEvent(new Event('submit'));
     };
-
+    
     rec.onerror = () => micBtn.classList.remove('bg-red-500', 'animate-pulse');
 }
 
-// Kamera & Gambar
-cameraBtn.addEventListener('click', () => fileInput.click());
-fileInput.addEventListener('change', function() {
-    const file = this.files[0];
-    if (file) {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            currentImageBase64 = e.target.result;
-            previewImg.src = currentImageBase64;
-            imagePreview.classList.remove('hidden');
-        };
-        reader.readAsDataURL(file);
-    }
-});
-
-removeImg.addEventListener('click', () => {
-    currentImageBase64 = null;
-    imagePreview.classList.add('hidden');
-});
-
-// Submit Chat
+// 3. Submit Chat (Tanpa Fitur Suara Keluar)
 chatForm.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const text = userInput.value.trim();
-    if (!text && !currentImageBase64) return;
+    const msg = userInput.value.trim();
+    if (!msg) return;
 
-    appendMessage('user', text || "Menganalisis gambar...", currentImageBase64);
-    
-    const tempImg = currentImageBase64;
+    appendMessage('user', msg);
     userInput.value = '';
-    imagePreview.classList.add('hidden');
-    currentImageBase64 = null;
 
     try {
         const res = await fetch('/api/ai', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message: text, imageBase64: tempImg })
+            body: JSON.stringify({ message: msg })
         });
-        
         const data = await res.json();
         if (data.candidates) {
-            // Tampilkan teks saja (Bisu total)
+            // Cukup tampilkan teks, tidak ada perintah .speak()
             appendMessage('ai', data.candidates[0].content.parts[0].text);
         }
     } catch (err) {
-        appendMessage('ai', 'Error koneksi, Bos!');
+        appendMessage('ai', 'Error koneksi ke Groq API, Bos.');
     }
 });
