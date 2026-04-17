@@ -3,48 +3,61 @@ const userInput = document.getElementById('userInput');
 const chatArea = document.getElementById('chatArea');
 const fileInput = document.getElementById('fileInput');
 const cameraBtn = document.getElementById('cameraBtn');
-const micBtn = document.getElementById('micBtn');
+const micBtn = document.getElementById('micBtn'); // Pastikan ada tombol ID micBtn di HTML
 const imagePreview = document.getElementById('imagePreview');
 const previewImg = document.getElementById('previewImg');
 const removeImg = document.getElementById('removeImg');
 
 let currentImageBase64 = null;
 
-// --- LOGIKA PESAN KE LAYAR ---
+// Fungsi Tampilkan Pesan
 function appendMessage(role, text, imageUrl = null) {
     const wrapper = document.createElement('div');
-    wrapper.className = `flex w-full mb-8 message-in ${role === 'user' ? 'justify-end' : 'justify-start'}`;
+    wrapper.className = `flex w-full mb-6 ${role === 'user' ? 'justify-end' : 'justify-start'}`;
     
-    let html = "";
-    if (role === 'user') {
-        html = `<div class="user-bubble max-w-[85%] text-[15px]">`;
-        if (imageUrl) html += `<img src="${imageUrl}" class="w-48 h-48 object-cover rounded-lg mb-2 border border-white/10 shadow-lg">`;
-        html += `${text}</div>`;
-    } else {
-        html = `
-            <div class="flex gap-4 max-w-full">
-                <div class="w-8 h-8 rounded-full bg-[#2f2f2f] flex-shrink-0 flex items-center justify-center border border-white/5 shadow-md">
-                    <i class="fas fa-robot text-[12px] text-slate-400"></i>
-                </div>
-                <div class="ai-bubble text-[15px] leading-relaxed text-[#ececec]">${text}</div>
-            </div>`;
-    }
+    let content = role === 'user' ? 
+        `<div class="bg-blue-600 text-white p-3 rounded-2xl max-w-[80%] shadow-lg">
+            ${imageUrl ? `<img src="${imageUrl}" class="w-48 rounded-lg mb-2 border border-white/20">` : ''}
+            <p class="text-sm">${text}</p>
+        </div>` :
+        `<div class="flex gap-3 max-w-[85%]">
+            <div class="w-9 h-9 rounded-full bg-gray-700 flex items-center justify-center text-[10px] text-white font-bold border border-gray-600">AI</div>
+            <div class="bg-gray-800 text-gray-100 p-3 rounded-2xl shadow-md border border-gray-700">
+                <p class="text-sm leading-relaxed">${text}</p>
+            </div>
+        </div>`;
     
-    wrapper.innerHTML = html;
+    wrapper.innerHTML = content;
     chatArea.appendChild(wrapper);
     chatArea.scrollTo({ top: chatArea.scrollHeight, behavior: 'smooth' });
 }
 
-// --- FITUR GAMBAR/KAMERA ---
-cameraBtn.addEventListener('click', () => fileInput.click());
+// Fitur Suara Ke Teks (Otomatis Kirim)
+const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+if (Recognition) {
+    const rec = new Recognition();
+    rec.lang = 'id-ID';
+    
+    micBtn.addEventListener('click', () => {
+        rec.start();
+        micBtn.classList.add('bg-red-500', 'animate-pulse');
+    });
 
+    rec.onresult = (e) => {
+        userInput.value = e.results[0][0].transcript;
+        micBtn.classList.remove('bg-red-500', 'animate-pulse');
+        // LANGSUNG KIRIM OTOMATIS
+        chatForm.dispatchEvent(new Event('submit'));
+    };
+
+    rec.onerror = () => micBtn.classList.remove('bg-red-500', 'animate-pulse');
+}
+
+// Kamera & Gambar
+cameraBtn.addEventListener('click', () => fileInput.click());
 fileInput.addEventListener('change', function() {
     const file = this.files[0];
     if (file) {
-        if (file.size > 3 * 1024 * 1024) {
-            alert("Gambar terlalu berat, Bos! Cari yang di bawah 3MB.");
-            return;
-        }
         const reader = new FileReader();
         reader.onload = (e) => {
             currentImageBase64 = e.target.result;
@@ -57,71 +70,35 @@ fileInput.addEventListener('change', function() {
 
 removeImg.addEventListener('click', () => {
     currentImageBase64 = null;
-    fileInput.value = "";
     imagePreview.classList.add('hidden');
 });
 
-// --- FITUR SUARA (SPEECH TO TEXT) ---
-const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-if (SpeechRecognition) {
-    const rec = new SpeechRecognition();
-    rec.lang = 'id-ID';
-    micBtn.addEventListener('click', () => {
-        rec.start();
-        micBtn.classList.add('mic-active');
-    });
-    rec.onresult = (e) => {
-        userInput.value = e.results[0][0].transcript;
-        micBtn.classList.remove('mic-active');
-    };
-    rec.onerror = () => micBtn.classList.remove('mic-active');
-}
-
-// --- KIRIM DATA KE API ---
+// Submit Chat
 chatForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const text = userInput.value.trim();
     if (!text && !currentImageBase64) return;
 
-    // Tampilkan di UI
     appendMessage('user', text || "Menganalisis gambar...", currentImageBase64);
     
-    // Reset Input
-    const imgToSend = currentImageBase64;
+    const tempImg = currentImageBase64;
     userInput.value = '';
     imagePreview.classList.add('hidden');
     currentImageBase64 = null;
-    fileInput.value = "";
-
-    // Loading
-    const loaderId = 'ld-' + Date.now();
-    const loader = document.createElement('div');
-    loader.id = loaderId;
-    loader.className = 'text-slate-500 text-xs animate-pulse ml-12 mb-8';
-    loader.innerText = 'Riksan AI sedang memproses...';
-    chatArea.appendChild(loader);
 
     try {
         const res = await fetch('/api/ai', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message: text, imageBase64: imgToSend })
+            body: JSON.stringify({ message: text, imageBase64: tempImg })
         });
         
         const data = await res.json();
-        document.getElementById(loaderId).remove();
-
         if (data.candidates) {
-            const aiResponse = data.candidates[0].content.parts[0].text;
-            appendMessage('ai', aiResponse);
-            
-            // AI Bicara (TTS)
-            const speak = new SpeechSynthesisUtterance(aiResponse);
-            speak.lang = 'id-ID';
-            window.speechSynthesis.speak(speak);
+            // Tampilkan teks saja (Bisu total)
+            appendMessage('ai', data.candidates[0].content.parts[0].text);
         }
     } catch (err) {
-        if(document.getElementById(loaderId)) document.getElementById(loaderId).remove();
-        appendMessage('ai', 'Koneksi error, coba cek internet atau redeploy Vercel.');
+        appendMessage('ai', 'Error koneksi, Bos!');
     }
 });
