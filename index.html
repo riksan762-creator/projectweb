@@ -2,7 +2,7 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Riksan AI - Professional</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
@@ -20,7 +20,7 @@
             </button>
         </div>
         <div class="history-container">
-            <div class="history-title">Hari Ini</div>
+            <div class="history-title">Riwayat Chat</div>
             <div id="history-list"></div>
         </div>
         <div class="sidebar-footer">
@@ -34,20 +34,21 @@
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
             </button>
             <div class="header-title">Riksan AI <span>3.3</span></div>
-            <div class="header-placeholder"></div>
+            <div class="user-avatar-small">R</div> 
         </header>
 
         <div id="chat-container" class="chat-wrapper">
-            </div>
+             <div class="chat-container-inner" id="chat-inner"></div>
+        </div>
 
         <div class="input-section">
             <div class="input-box">
-                <input type="text" id="user-input" placeholder="Kirim pesan ke Riksan AI..." onkeypress="if(event.key==='Enter') sendMessage()">
-                <button onclick="sendMessage()" class="btn-send">
+                <input type="text" id="user-input" placeholder="Kirim pesan ke Riksan AI..." onkeypress="if(event.key==='Enter') sendMessage()" autocomplete="off">
+                <button onclick="sendMessage()" class="btn-send" id="send-button">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
                 </button>
             </div>
-            <div class="disclaimer">AI dapat membuat kesalahan. Harap verifikasi informasi penting.</div>
+            <div class="disclaimer">Riksan AI dapat membuat kesalahan. Harap verifikasi informasi penting.</div>
         </div>
     </main>
 
