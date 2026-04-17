@@ -1,96 +1,90 @@
-/* Update Font & Base */
 :root {
-    --bg-main: #212121;
-    --bg-sidebar: #171717;
-    --bg-input: #2f2f2f;
-    --text-primary: #ececec;
-    --text-secondary: #b4b4b4;
-    --accent: #10a37f; /* Pro AI Green */
-    --border-color: rgba(255, 255, 255, 0.08);
+    --bg-dark: #0d0d0d;
+    --sidebar-dark: #000000;
+    --card-dark: #1a1a1a;
+    --accent: #10a37f;
+    --text-main: #e5e5e5;
+    --text-muted: #8e8e93;
 }
 
 body {
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
-    letter-spacing: -0.01em;
+    background-color: var(--bg-dark);
+    color: var(--text-main);
+    font-family: 'Inter', -apple-system, sans-serif;
+    margin: 0; display: flex; height: 100vh;
 }
 
-/* Sidebar Upgrade */
+/* Sidebar Estetik */
+.sidebar {
+    width: 260px; background: var(--sidebar-dark);
+    border-right: 1px solid #222;
+    display: flex; flex-direction: column;
+}
+
 .history-item {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 12px;
-    margin: 4px 8px;
-    border-radius: 8px;
-    transition: all 0.2s ease;
-    color: var(--text-secondary);
+    padding: 12px 16px; margin: 4px 12px;
+    border-radius: 8px; font-size: 13px;
+    cursor: pointer; transition: 0.3s;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.history-item:hover { background: #1a1a1a; }
+.history-item.active { background: #2c2c2c; font-weight: 500; }
+
+/* Main Area */
+.main-area { flex: 1; display: flex; flex-direction: column; }
+
+/* Welcome Section */
+.welcome-section {
+    flex: 1; display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+}
+.ai-badge {
+    font-size: 11px; background: #222; color: var(--accent);
+    padding: 4px 10px; border-radius: 20px; letter-spacing: 1px;
+    margin-bottom: 20px; border: 1px solid #333;
+}
+.welcome-section h1 { font-size: 24px; font-weight: 500; opacity: 0.9; }
+
+/* Chat Container */
+.chat-wrapper { flex: 1; overflow-y: auto; }
+.msg-inner {
+    max-width: 768px; margin: 0 auto;
+    display: flex; gap: 24px; padding: 32px 20px;
 }
 
-.history-item:hover {
-    background: rgba(255, 255, 255, 0.05);
-    color: var(--text-primary);
+.avatar {
+    width: 32px; height: 32px; border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 600; flex-shrink: 0;
 }
+.avatar.user { background: #3c3c3c; color: #fff; font-size: 14px; }
+.avatar.ai { background: var(--accent); color: #fff; }
 
-.active-item {
-    background: rgba(255, 255, 255, 0.1) !important;
-    color: white !important;
-}
+.content { font-size: 16px; line-height: 1.6; }
+.thinking { color: var(--text-muted); font-style: italic; }
 
-/* Welcome Screen Upgrade */
-.welcome-msg {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    height: 80%;
-    animation: fadeIn 0.8s ease;
-}
-
-.welcome-icon {
-    font-size: 40px;
-    margin-bottom: 20px;
-    opacity: 0.8;
-}
-
-/* Chat Row Upgrade */
-.message-row {
-    border-bottom: 1px solid transparent;
-    transition: background 0.3s;
-}
-
-.message-content {
-    font-size: 15.5px;
-    line-height: 1.7;
-    font-weight: 400;
-}
-
-.thinking {
-    color: var(--text-secondary);
-    font-style: italic;
-    opacity: 0.8;
-}
-
-/* Input Box Upgrade */
+/* Input Section */
+.input-section { padding: 24px; max-width: 800px; margin: 0 auto; width: 100%; }
 .input-box {
-    border: 1px solid rgba(255,255,255,0.1);
-    transition: border-color 0.3s, box-shadow 0.3s;
+    background: var(--card-dark); border: 1px solid #333;
+    border-radius: 16px; display: flex; align-items: center;
+    padding: 12px 18px; box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+}
+.input-box input {
+    flex: 1; background: transparent; border: none;
+    color: #fff; font-size: 16px; outline: none;
 }
 
-.input-box:focus-within {
-    border-color: rgba(255,255,255,0.2);
-    box-shadow: 0 0 20px rgba(0,0,0,0.2);
+/* Animations */
+.fade-up {
+    animation: fadeUp 0.5s ease forwards;
 }
-
-/* Animation */
-.fade-in {
-    animation: fadeIn 0.4s ease-out;
-}
-
-@keyframes fadeIn {
-    from { opacity: 0; transform: translateY(5px); }
+@keyframes fadeUp {
+    from { opacity: 0; transform: translateY(10px); }
     to { opacity: 1; transform: translateY(0); }
 }
 
-/* Scrollbar */
-::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
+@media (max-width: 768px) {
+    .sidebar { position: absolute; left: -260px; height: 100%; }
+    .sidebar.active { left: 0; }
+}
