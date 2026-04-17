@@ -61,7 +61,7 @@ removeImg.addEventListener('click', () => {
     imagePreview.classList.add('hidden');
 });
 
-// --- FITUR SUARA (SPEECH TO TEXT) ---
+// --- FITUR SUARA (SPEECH TO TEXT) - AUTO SEND ---
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 if (SpeechRecognition) {
     const rec = new SpeechRecognition();
@@ -73,6 +73,8 @@ if (SpeechRecognition) {
     rec.onresult = (e) => {
         userInput.value = e.results[0][0].transcript;
         micBtn.classList.remove('mic-active');
+        // LANGSUNG KIRIM OTOMATIS SETELAH NGOMONG
+        chatForm.dispatchEvent(new Event('submit'));
     };
     rec.onerror = () => micBtn.classList.remove('mic-active');
 }
@@ -109,19 +111,17 @@ chatForm.addEventListener('submit', async (e) => {
         });
         
         const data = await res.json();
-        document.getElementById(loaderId).remove();
+        const loaderElem = document.getElementById(loaderId);
+        if(loaderElem) loaderElem.remove();
 
-        if (data.candidates) {
-            const aiResponse = data.candidates[0].content.parts[0].text;
-            appendMessage('ai', aiResponse);
-            
-            // AI Bicara (TTS)
-            const speak = new SpeechSynthesisUtterance(aiResponse);
-            speak.lang = 'id-ID';
-            window.speechSynthesis.speak(speak);
-        }
+        // LOGIKA BARU: Cek data.reply atau data.text (Sesuai api/ai.js kamu)
+        const responseText = data.reply || data.text || "Respon kosong, Bos.";
+        appendMessage('ai', responseText);
+        
+        // FITUR SUARA DIHAPUS BIAR BISU TOTAL
     } catch (err) {
-        if(document.getElementById(loaderId)) document.getElementById(loaderId).remove();
+        const loaderElem = document.getElementById(loaderId);
+        if(loaderElem) loaderElem.remove();
         appendMessage('ai', 'Koneksi error, coba cek internet atau redeploy Vercel.');
     }
 });
