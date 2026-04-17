@@ -1,283 +1,62 @@
-/* style.css */
-* {
-    box-sizing: border-box;
-    margin: 0;
-    padding: 0;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-}
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;800&display=swap');
 
 body {
-    background-color: #121212; /* Dark Mode Premium */
-    height: 100vh;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    color: #e0e0e0;
+    font-family: 'Plus Jakarta Sans', sans-serif;
 }
 
-.chat-container {
-    width: 100%;
-    max-width: 600px;
-    height: 100vh;
-    background-color: #1e1e1e;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    box-shadow: 0 5px 20px rgba(0,0,0,0.5);
+.glass-morphism {
+    background: rgba(15, 23, 42, 0.8);
+    backdrop-filter: blur(40px);
+    -webkit-backdrop-filter: blur(40px);
 }
 
-@media (min-width: 601px) {
-    .chat-container {
-        height: 90vh;
-        border-radius: 15px;
-    }
+.glass-input {
+    background: rgba(255, 255, 255, 0.03);
 }
 
-/* --- Header --- */
-.chat-header {
-    padding: 15px 20px;
-    background-color: #2c2c2c;
-    border-bottom: 1px solid #3a3a3a;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+.gradient-text {
+    background: linear-gradient(135deg, #fff 0%, #3b82f6 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
 }
 
-.header-info {
-    display: flex;
-    align-items: center;
-    gap: 12px;
+.custom-scroll::-webkit-scrollbar {
+    width: 3px;
 }
 
-.avatar {
-    width: 40px;
-    height: 40px;
-    background-color: #7b2cbf; /* Warna aksen premium */
-    border-radius: 50%;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    font-size: 1.2rem;
-    font-weight: bold;
-    color: white;
-}
-
-.chat-header h1 {
-    font-size: 1.1rem;
-    color: #f5f5f5;
-}
-
-.status-online {
-    font-size: 0.8rem;
-    color: #00e676; /* Hijau neon online */
-}
-
-/* --- Body (Chat Area) --- */
-.chat-body {
-    flex: 1;
-    padding: 20px;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 15px;
-    scroll-behavior: smooth;
-}
-
-.message {
-    display: flex;
-    max-width: 80%;
-}
-
-.message-content {
-    padding: 10px 15px;
+.custom-scroll::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
     border-radius: 10px;
-    font-size: 0.95rem;
-    line-height: 1.4;
-    word-wrap: break-word;
 }
 
-/* Pesan Kamu (User) */
-.user-message {
-    align-self: flex-end;
+.user-bubble {
+    background: #2563eb;
+    box-shadow: 0 10px 20px -5px rgba(37, 99, 235, 0.4);
 }
 
-.user-message .message-content {
-    background-color: #3f3f3f;
-    color: #f5f5f5;
-    border-bottom-right-radius: 2px;
+.ai-bubble {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
-/* Pesan AI */
-.ai-message {
-    align-self: flex-start;
+.message-in {
+    animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-.ai-message .message-content {
-    background-color: #7b2cbf;
-    color: white;
-    border-bottom-left-radius: 2px;
+@keyframes slideUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
-.message-content img {
-    max-width: 100%;
-    border-radius: 8px;
-    margin-top: 8px;
-    border: 1px solid #4a4a4a;
+/* Mic Active Glow */
+.mic-active {
+    background: rgba(239, 68, 68, 0.2) !important;
+    color: #ef4444 !important;
+    animation: pulse-red 1.5s infinite;
 }
 
-/* --- Pratinjau Gambar --- */
-#image-preview-container {
-    padding: 10px 20px;
-    background-color: #2c2c2c;
-    border-top: 1px solid #3a3a3a;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    position: relative;
-}
-
-#image-preview {
-    max-width: 80px;
-    max-height: 80px;
-    border-radius: 8px;
-    border: 1px solid #4a4a4a;
-}
-
-.image-preview-hidden {
-    display: none !important;
-}
-
-.clear-image-btn {
-    position: absolute;
-    top: 5px;
-    right: 5px;
-    background: #ff5252;
-    border: none;
-    color: white;
-    width: 20px;
-    height: 20px;
-    border-radius: 50%;
-    cursor: pointer;
-    font-size: 1rem;
-    line-height: 1;
-}
-
-/* --- Footer (Input) --- */
-.chat-footer {
-    padding: 15px;
-    background-color: #2c2c2c;
-    border-top: 1px solid #3a3a3a;
-}
-
-.input-group {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    background-color: #1e1e1e;
-    padding: 5px 10px;
-    border-radius: 25px;
-    border: 1px solid #3a3a3a;
-}
-
-.input-group input[type="text"] {
-    flex: 1;
-    background: transparent;
-    border: none;
-    padding: 10px;
-    color: #e0e0e0;
-    font-size: 0.95rem;
-}
-
-.input-group input[type="text"]:focus {
-    outline: none;
-}
-
-.icon-btn, .send-btn {
-    background: transparent;
-    border: none;
-    cursor: pointer;
-    font-size: 1.2rem;
-    color: #9e9e9e;
-    transition: color 0.2s, background-color 0.2s;
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-}
-
-.icon-btn:hover {
-    color: #e0e0e0;
-    background-color: #3a3a3a;
-}
-
-.send-btn {
-    color: #7b2cbf;
-}
-
-.send-btn:hover {
-    background-color: #7b2cbf;
-    color: white;
-}
-
-/* --- Modal Kamera --- */
-.modal-hidden {
-    display: none !important;
-}
-
-#camera-modal {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0,0,0,0.9);
-    z-index: 1000;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-}
-
-.modal-content {
-    width: 100%;
-    max-width: 500px;
-    background-color: #1e1e1e;
-    border-radius: 15px;
-    padding: 20px;
-    text-align: center;
-    box-shadow: 0 5px 30px rgba(0,0,0,0.8);
-}
-
-#webcam {
-    width: 100%;
-    border-radius: 10px;
-    background-color: black;
-}
-
-.camera-controls {
-    margin-top: 20px;
-    display: flex;
-    justify-content: center;
-    gap: 15px;
-}
-
-.capture-btn {
-    background-color: #00e676;
-    color: black;
-    border: none;
-    padding: 10px 25px;
-    border-radius: 20px;
-    font-weight: bold;
-    cursor: pointer;
-}
-
-.close-modal-btn {
-    background-color: #ff5252;
-    color: white;
-    border: none;
-    padding: 10px 25px;
-    border-radius: 20px;
-    font-weight: bold;
-    cursor: pointer;
+@keyframes pulse-red {
+    0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+    70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
 }
