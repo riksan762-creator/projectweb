@@ -1,100 +1,89 @@
-document.addEventListener('DOMContentLoaded', () => {
-    const chatForm = document.getElementById('chatForm');
-    const userInput = document.getElementById('userInput');
-    const chatArea = document.getElementById('chatArea');
-    const micBtn = document.getElementById('micBtn');
-    const cameraBtn = document.getElementById('cameraBtn');
-    const fileInput = document.getElementById('fileInput');
+const chatForm = document.getElementById('chatForm');
+const userInput = document.getElementById('userInput');
+const chatArea = document.getElementById('chatArea');
+const micBtn = document.getElementById('micBtn');
+
+// Fungsi untuk nambahin chat ke layar
+function appendMessage(role, text) {
+    const msgDiv = document.createElement('div');
+    msgDiv.className = `flex ${role === 'user' ? 'justify-end' : 'justify-start'} message-in mb-6`;
     
-    let voiceEnabled = true;
+    const bubbleClass = role === 'user' ? 'user-bubble rounded-tr-none' : 'ai-bubble rounded-tl-none';
+    
+    msgDiv.innerHTML = `
+        <div class="${bubbleClass} max-w-[85%] p-4 rounded-2xl border border-white/5">
+            <p class="text-sm md:text-base leading-relaxed text-white">${text}</p>
+        </div>
+    `;
+    chatArea.appendChild(msgDiv);
+    chatArea.scrollTop = chatArea.scrollHeight;
+}
 
-    // Fungsi Tambah Pesan ke UI
-    function appendMessage(role, text) {
-        const msgDiv = document.createElement('div');
-        msgDiv.className = `flex ${role === 'user' ? 'justify-end' : 'justify-start'} message-anim mb-6`;
-        
-        msgDiv.innerHTML = `
-            <div class="${role === 'user' ? 'bg-blue-600 text-white' : 'bg-white/5 border border-white/10 text-slate-100'} max-w-[85%] p-4 rounded-[1.5rem] ${role === 'user' ? 'rounded-tr-none' : 'rounded-tl-none'}">
-                <p class="text-sm md:text-base leading-relaxed">${text}</p>
-            </div>
-        `;
-        
-        chatArea.appendChild(msgDiv);
-        chatArea.scrollTo({ top: chatArea.scrollHeight, behavior: 'smooth' });
+// Fungsi kirim pesan
+async function handleSubmit(e) {
+    if (e) e.preventDefault();
+    
+    const message = userInput.value.trim();
+    if (!message) return;
 
-        if (role === 'ai' && voiceEnabled) {
-            speakText(text);
+    // Tampilkan pesan user
+    appendMessage('user', message);
+    userInput.value = '';
+
+    // Indikator Loading
+    const loadingId = 'loader-' + Date.now();
+    const loadingDiv = document.createElement('div');
+    loadingDiv.id = loadingId;
+    loadingDiv.className = 'flex justify-start mb-6';
+    loadingDiv.innerHTML = `<div class="ai-bubble p-4 rounded-2xl text-xs text-slate-500 italic">Riksan AI sedang mengetik...</div>`;
+    chatArea.appendChild(loadingDiv);
+    chatArea.scrollTop = chatArea.scrollHeight;
+
+    try {
+        console.log("Mengirim pesan ke API:", message);
+
+        // Kita kirim pakai format JSON (lebih modern dan stabil)
+        const response = await fetch('/api/ai', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: message }) // Kirim pesan sebagai JSON
+        });
+
+        const data = await response.json();
+        console.log("Respon dari API:", data);
+
+        // Hapus loading
+        const loader = document.getElementById(loadingId);
+        if (loader) loader.remove();
+
+        if (data.candidates && data.candidates[0].content.parts[0].text) {
+            appendMessage('ai', data.candidates[0].content.parts[0].text);
+        } else {
+            appendMessage('ai', "Waduh, respon AI kosong euy. Cek API Key!");
         }
+    } catch (error) {
+        console.error("Error Detail:", error);
+        if (document.getElementById(loadingId)) document.getElementById(loadingId).remove();
+        appendMessage('ai', "Gagal terhubung ke server. Coba cek koneksi atau re-deploy di Vercel.");
     }
+}
 
-    // Fungsi Kirim ke API Vercel
-    chatForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const text = userInput.value.trim();
-        if (!text) return;
+// Pasang Event Listener
+chatForm.addEventListener('submit', handleSubmit);
 
-        appendMessage('user', text);
-        userInput.value = '';
-
-        const loadingId = 'load-' + Date.now();
-        const loadingDiv = document.createElement('div');
-        loadingDiv.id = loadingId;
-        loadingDiv.className = 'flex justify-start mb-6';
-        loadingDiv.innerHTML = `<div class="bg-white/5 p-3 rounded-xl text-[10px] uppercase text-slate-500 italic"><i class="fas fa-circle-notch animate-spin mr-2"></i>Processing...</div>`;
-        chatArea.appendChild(loadingDiv);
-
-        try {
-            const response = await fetch('/api/ai', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: new URLSearchParams({ message: text })
-            });
-
-            const data = await response.json();
-            document.getElementById(loadingId).remove();
-
-            if (data.candidates) {
-                appendMessage('ai', data.candidates[0].content.parts[0].text);
-            }
-        } catch (err) {
-            if (document.getElementById(loadingId)) document.getElementById(loadingId).remove();
-            appendMessage('ai', "Gagal menghubungi server.");
-        }
+// Fitur Mic (Opsional, tapi biar keren tetap saya pasang)
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+if (SpeechRecognition) {
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'id-ID';
+    micBtn.addEventListener('click', () => {
+        recognition.start();
+        micBtn.classList.add('mic-active');
     });
-
-    // Fitur Voice to Text (Mikrofon)
-    const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (SpeechRec) {
-        const recognition = new SpeechRec();
-        recognition.lang = 'id-ID';
-        
-        micBtn.onclick = () => {
-            recognition.start();
-            micBtn.classList.add('mic-active');
-        };
-
-        recognition.onresult = (e) => {
-            userInput.value = e.results[0][0].transcript;
-            micBtn.classList.remove('mic-active');
-            chatForm.dispatchEvent(new Event('submit'));
-        };
-        
-        recognition.onend = () => micBtn.classList.remove('mic-active');
-    }
-
-    // Fitur Text to Speech (Suara AI)
-    function speakText(text) {
-        window.speechSynthesis.cancel();
-        const msg = new SpeechSynthesisUtterance(text);
-        msg.lang = 'id-ID';
-        window.speechSynthesis.speak(msg);
-    }
-
-    // Kamera & Input File
-    cameraBtn.onclick = () => fileInput.click();
-    fileInput.onchange = () => {
-        if (fileInput.files.length > 0) {
-            appendMessage('ai', `File "${fileInput.files[0].name}" terdeteksi.`);
-        }
+    recognition.onresult = (event) => {
+        userInput.value = event.results[0][0].transcript;
+        micBtn.classList.remove('mic-active');
+        handleSubmit();
     };
-});
+    recognition.onerror = () => micBtn.classList.remove('mic-active');
+}
