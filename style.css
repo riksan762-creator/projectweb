@@ -1,171 +1,108 @@
 :root {
-    --bg-dark: #000000; /* Hitam pekat sesuai screenshot */
-    --card-dark: #171717;
-    --text-main: #ffffff;
+    --black: #000000;
+    --gray-900: #171717;
+    --gray-800: #212121;
+    --gray-700: #2f2f2f;
+    --text-main: #ececec;
     --text-muted: #b4b4b4;
-    --accent-green: #10a37f;
-    --input-bg: #212121;
+    --accent: #10a37f;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
-body {
-    background-color: var(--bg-dark);
+html, body {
+    height: 100%; width: 100%;
+    background-color: var(--black);
     color: var(--text-main);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    height: 100vh;
-    display: flex;
-    overflow: hidden;
+    font-family: -apple-system, system-ui, sans-serif;
+    overflow: hidden; /* Lock main body */
+    position: fixed; /* Anti-scroll bug mobile */
 }
 
-/* Sidebar Tersembunyi */
+/* Sidebar Styling */
 .sidebar {
-    width: 260px;
-    background: #000;
+    position: fixed; top: 0; left: -280px;
+    width: 280px; height: 100%;
+    background: var(--black);
     border-right: 1px solid #262626;
-    display: flex;
-    flex-direction: column;
-    transition: all 0.3s ease;
+    z-index: 1000; transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
-.sidebar.hidden { margin-left: -260px; }
+.sidebar.active { transform: translateX(280px); }
 
-/* Main Chat Area */
-.main-area {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    position: relative;
-    height: 100%;
+.overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+    display: none; z-index: 900;
 }
+.sidebar.active + .overlay { display: block; }
 
-/* Welcome Section di Tengah */
-.welcome-section {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-}
-.welcome-section h1 {
-    font-size: 24px;
-    font-weight: 600;
-    margin-bottom: 30px;
+/* Main Content Layout */
+.main-content {
+    display: flex; flex-direction: column;
+    height: 100%; width: 100%;
 }
 
-/* Sugesti Buttons ala ChatGPT */
-.suggestions {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-    max-width: 600px;
-    padding: 0 20px;
-}
-.suggest-btn {
-    background: transparent;
-    border: 1px solid #333;
-    padding: 12px 16px;
-    border-radius: 12px;
-    color: var(--text-main);
-    font-size: 14px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 10px;
+.top-nav {
+    height: 60px; display: flex; align-items: center;
+    justify-content: space-between; padding: 0 15px;
+    background: var(--black); border-bottom: 1px solid #222;
 }
 
-/* Chat Wrapper */
-.chat-wrapper {
-    flex: 1;
-    overflow-y: auto;
-    padding-bottom: 120px; /* Biar gak ketutup input bar */
+.chat-container {
+    flex: 1; overflow-y: auto;
+    padding: 20px 0 150px 0; /* Space for input */
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
 }
 
-.message-row {
-    width: 100%;
-    padding: 24px 20px;
-}
+/* Chat Bubbles */
+.message-row { width: 100%; padding: 20px; animation: fadeIn 0.3s ease; }
+.ai-row { background: transparent; }
+.user-row { background: transparent; }
 
 .msg-inner {
-    max-width: 768px;
-    margin: 0 auto;
-    display: flex;
-    gap: 16px;
+    max-width: 768px; margin: 0 auto;
+    display: flex; gap: 16px;
 }
 
 .avatar {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
+    width: 30px; height: 30px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; font-size: 12px; font-weight: bold;
 }
-.avatar.ai { background: transparent; border: 1px solid #444; }
-.avatar.user { background: #5436da; color: white; font-size: 12px; }
+.avatar.ai { border: 1px solid #444; background: transparent; }
+.avatar.user { background: #5436da; color: white; }
 
-.content {
-    font-size: 16px;
-    line-height: 1.6;
-    color: #ececec;
-    padding-top: 4px;
+.content { font-size: 16px; line-height: 1.6; color: var(--text-main); }
+
+/* Input Section */
+.input-area {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    padding: 10px 16px 30px 16px;
+    background: linear-gradient(transparent, var(--black) 50%);
 }
 
-/* Floating Input Bar ala Screenshot */
-.input-container {
-    position: absolute;
-    bottom: 20px;
-    left: 0;
-    right: 0;
-    padding: 0 20px;
+.input-wrapper {
+    max-width: 768px; margin: 0 auto;
+    background: var(--gray-800); border: 1px solid #333;
+    border-radius: 28px; display: flex; align-items: center;
+    padding: 6px 10px 6px 18px;
 }
 
-.input-box-wrapper {
-    max-width: 768px;
-    margin: 0 auto;
-    background: var(--input-bg);
-    border-radius: 26px;
-    display: flex;
-    align-items: center;
-    padding: 8px 12px;
-    border: 1px solid #333;
+#user-input {
+    flex: 1; background: transparent; border: none;
+    color: white; font-size: 16px !important; /* Anti-zoom */
+    outline: none; padding: 10px 0;
 }
 
-.input-box-wrapper input {
-    flex: 1;
-    background: transparent;
-    border: none;
-    color: white;
-    padding: 10px 15px;
-    font-size: 16px;
-    outline: none;
+#send-btn {
+    width: 34px; height: 34px; border-radius: 50%;
+    background: white; color: black; border: none;
+    font-size: 18px; cursor: pointer; transition: 0.2s;
 }
 
-.btn-action {
-    background: transparent;
-    border: none;
-    color: #b4b4b4;
-    padding: 8px;
-    cursor: pointer;
+.footer-note {
+    text-align: center; font-size: 11px; color: var(--text-muted);
+    margin-top: 10px;
 }
 
-.btn-send-round {
-    background: white;
-    color: black;
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: none;
-    cursor: pointer;
-}
-
-/* Animasi */
-.fade-up { animation: fadeUp 0.4s ease forwards; }
-@keyframes fadeUp {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
-}
+@keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
