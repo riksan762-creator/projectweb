@@ -8,7 +8,8 @@
     --accent: #10a37f;
 }
 
-* { box-sizing: border-box; margin: 0; padding: 0; }
+/* Reset Dasar */
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
 body {
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
@@ -16,115 +17,211 @@ body {
     color: var(--text-primary);
     display: flex;
     height: 100vh;
+    width: 100vw;
     overflow: hidden;
     font-size: 15px;
-    line-height: 1.6;
 }
 
-/* Sidebar */
+/* SIDEBAR STRATEGY */
 .sidebar {
     width: 260px;
     background-color: var(--bg-sidebar);
     display: flex;
     flex-direction: column;
-    transition: transform 0.3s ease;
-    z-index: 100;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 1000;
+    border-right: 1px solid var(--border-color);
 }
-.sidebar.hidden { transform: translateX(-260px); width: 0; }
 
-.sidebar-header { padding: 20px; display: flex; justify-content: space-between; align-items: center; }
+/* Class untuk JS Toggle */
+.sidebar.hidden {
+    margin-left: -260px;
+}
+
+.sidebar-header { padding: 15px; display: flex; gap: 10px; align-items: center; }
+
 .btn-new-chat {
     flex: 1;
     background: transparent;
     border: 1px solid var(--border-color);
     color: var(--text-primary);
-    padding: 10px 14px;
-    border-radius: 6px;
+    padding: 10px;
+    border-radius: 8px;
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
     cursor: pointer;
     font-size: 14px;
-    font-weight: 500;
     transition: background 0.2s;
 }
 .btn-new-chat:hover { background: rgba(255,255,255,0.05); }
-.btn-icon { background: none; border: none; color: var(--text-secondary); cursor: pointer; padding: 4px; display: flex; }
-.btn-icon:hover { color: var(--text-primary); }
 
-.history-container { flex: 1; overflow-y: auto; padding: 0 12px; }
-.history-title { font-size: 12px; color: var(--text-secondary); font-weight: 600; padding: 10px 8px; margin-top: 10px; }
-.history-item {
-    padding: 10px 12px;
-    border-radius: 6px;
-    font-size: 13px;
-    color: var(--text-primary);
-    cursor: pointer;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    margin-bottom: 2px;
+/* MAIN CONTENT */
+.main-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0; /* Penting agar tidak overflow */
+    position: relative;
 }
-.history-item:hover { background: rgba(255,255,255,0.05); }
-.active-item { background: rgba(255,255,255,0.1) !important; }
 
-.sidebar-footer { padding: 16px 20px; border-top: 1px solid var(--border-color); font-size: 12px; color: var(--text-secondary); }
+.top-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 15px;
+    height: 60px;
+}
 
-/* Main Chat Area */
-.main-area { flex: 1; display: flex; flex-direction: column; position: relative; }
-.top-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 20px; border-bottom: 1px solid transparent; }
-.header-title { font-weight: 500; font-size: 16px; display: flex; align-items: center; gap: 8px; color: var(--text-secondary); }
-.header-title span { font-size: 12px; color: var(--text-secondary); background: var(--bg-input); padding: 2px 6px; border-radius: 4px; }
-.header-placeholder { width: 24px; } /* Untuk menyeimbangkan layout header */
+.header-title {
+    font-weight: 600;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.header-title span {
+    background: #333;
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: #8ab4f8;
+}
 
-.chat-wrapper { flex: 1; overflow-y: auto; padding: 20px 0; }
-.chat-container-inner { max-width: 768px; margin: 0 auto; width: 100%; display: flex; flex-direction: column; }
+/* CHAT AREA (CENTERED LOGIC) */
+.chat-wrapper {
+    flex: 1;
+    overflow-y: auto;
+    scroll-behavior: smooth;
+    padding-bottom: 20px;
+}
 
-.welcome-msg { height: 100%; display: flex; align-items: center; justify-content: center; }
-.welcome-msg h1 { font-size: 28px; font-weight: 500; color: var(--text-primary); }
+.chat-container-inner {
+    max-width: 768px;
+    margin: 0 auto;
+    width: 100%;
+}
 
-.message-row { display: flex; padding: 24px 20px; gap: 20px; max-width: 768px; margin: 0 auto; width: 100%; }
-.user-row { background-color: transparent; }
-.ai-row { background-color: transparent; }
+.welcome-msg {
+    height: 60vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+}
+.welcome-msg h1 { font-size: 24px; font-weight: 500; opacity: 0.9; }
 
-.avatar { width: 30px; height: 30px; border-radius: 4px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 14px; font-weight: 600; }
-.avatar-user { background-color: #4a4a4a; color: white; }
-.avatar-ai { background-color: var(--accent); color: white; }
+/* MESSAGE BUBBLES */
+.message-row {
+    display: flex;
+    padding: 24px 20px;
+    gap: 18px;
+}
 
-.message-content { flex: 1; min-width: 0; }
-.message-content p { margin-bottom: 12px; }
-.message-content p:last-child { margin-bottom: 0; }
+.user-row { background: rgba(255, 255, 255, 0.02); }
 
-/* Input Section */
-.input-section { padding: 20px 24px; max-width: 800px; margin: 0 auto; width: 100%; }
+.avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%; /* Bulat sempurna seperti gambar */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 14px;
+    font-weight: bold;
+}
+.avatar-user { background: #5436da; color: white; }
+.avatar-ai { background: var(--accent); color: white; }
+
+.message-content {
+    flex: 1;
+    line-height: 1.6;
+    color: var(--text-primary);
+    word-break: break-word;
+}
+
+/* INPUT SECTION (FLOATING) */
+.input-section {
+    padding: 15px 20px 25px 20px;
+    max-width: 800px;
+    margin: 0 auto;
+    width: 100%;
+}
+
 .input-box {
     background-color: var(--bg-input);
     border: 1px solid var(--border-color);
-    border-radius: 12px;
+    border-radius: 14px;
     display: flex;
     align-items: center;
-    padding: 10px 16px;
-    box-shadow: 0 0 15px rgba(0,0,0,0.1);
+    padding: 8px 14px;
+    transition: border-color 0.2s;
 }
+.input-box:focus-within { border-color: rgba(255,255,255,0.3); }
+
 .input-box input {
     flex: 1;
     background: transparent;
     border: none;
     color: var(--text-primary);
-    font-size: 15px;
-    padding: 6px 0;
+    font-size: 16px;
+    padding: 8px 0;
     outline: none;
-    font-family: inherit;
 }
-.btn-send { background: transparent; border: none; color: var(--text-secondary); cursor: pointer; padding: 4px; display: flex; align-items: center; justify-content: center; border-radius: 6px; }
-.btn-send:hover { background: rgba(255,255,255,0.1); color: var(--text-primary); }
 
-.disclaimer { text-align: center; font-size: 12px; color: var(--text-secondary); margin-top: 12px; }
+.btn-send {
+    background: #fff;
+    color: #000;
+    border: none;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: opacity 0.2s;
+}
+.btn-send:hover { opacity: 0.8; }
 
-.mobile-only { display: none; }
+.disclaimer {
+    text-align: center;
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-top: 10px;
+}
 
+/* ANIMASI LOADING */
+.thinking {
+    font-style: italic;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* MOBILE RESPONSIVE */
 @media (max-width: 768px) {
-    .sidebar { position: absolute; height: 100%; transform: translateX(-100%); }
-    .sidebar.active { transform: translateX(0); }
+    .sidebar {
+        position: fixed;
+        height: 100%;
+        left: 0;
+        top: 0;
+    }
+    .sidebar:not(.active) {
+        transform: translateX(-100%);
+    }
     .mobile-only { display: block; }
+}
+
+.user-avatar-small {
+    width: 30px;
+    height: 30px;
+    background: #5436da;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
 }
