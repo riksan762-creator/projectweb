@@ -98,7 +98,7 @@ chatForm.addEventListener('submit', async (e) => {
     const loader = document.createElement('div');
     loader.id = loaderId;
     loader.className = 'text-slate-500 text-xs animate-pulse ml-12 mb-8';
-    loader.innerText = 'Riksan AI sedang memproses...';
+    loader.innerText = 'Riksan AI sedang berpikir...';
     chatArea.appendChild(loader);
 
     try {
