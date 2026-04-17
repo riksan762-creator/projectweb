@@ -1,64 +1,127 @@
 const chatForm = document.getElementById('chatForm');
 const userInput = document.getElementById('userInput');
 const chatArea = document.getElementById('chatArea');
-const micBtn = document.getElementById('micBtn'); // Pastikan ID di HTML: micBtn
+const fileInput = document.getElementById('fileInput');
+const cameraBtn = document.getElementById('cameraBtn');
+const micBtn = document.getElementById('micBtn');
+const imagePreview = document.getElementById('imagePreview');
+const previewImg = document.getElementById('previewImg');
+const removeImg = document.getElementById('removeImg');
 
-// 1. Fungsi Tampilkan Chat
-function appendMessage(role, text) {
+let currentImageBase64 = null;
+
+// --- LOGIKA PESAN KE LAYAR ---
+function appendMessage(role, text, imageUrl = null) {
     const wrapper = document.createElement('div');
-    wrapper.className = `flex w-full mb-4 ${role === 'user' ? 'justify-end' : 'justify-start'}`;
-    wrapper.innerHTML = `
-        <div class="${role === 'user' ? 'bg-blue-600' : 'bg-gray-800'} text-white p-3 rounded-2xl max-w-[85%] shadow-md">
-            <p class="text-sm">${text}</p>
-        </div>`;
+    wrapper.className = `flex w-full mb-8 message-in ${role === 'user' ? 'justify-end' : 'justify-start'}`;
+    
+    let html = "";
+    if (role === 'user') {
+        html = `<div class="user-bubble max-w-[85%] text-[15px]">`;
+        if (imageUrl) html += `<img src="${imageUrl}" class="w-48 h-48 object-cover rounded-lg mb-2 border border-white/10 shadow-lg">`;
+        html += `${text}</div>`;
+    } else {
+        html = `
+            <div class="flex gap-4 max-w-full">
+                <div class="w-8 h-8 rounded-full bg-[#2f2f2f] flex-shrink-0 flex items-center justify-center border border-white/5 shadow-md">
+                    <i class="fas fa-robot text-[12px] text-slate-400"></i>
+                </div>
+                <div class="ai-bubble text-[15px] leading-relaxed text-[#ececec]">${text}</div>
+            </div>`;
+    }
+    
+    wrapper.innerHTML = html;
     chatArea.appendChild(wrapper);
     chatArea.scrollTo({ top: chatArea.scrollHeight, behavior: 'smooth' });
 }
 
-// 2. Fitur Mic (Ngomong -> Teks -> Kirim)
-const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-if (Recognition) {
-    const rec = new Recognition();
+// --- FITUR GAMBAR/KAMERA ---
+cameraBtn.addEventListener('click', () => fileInput.click());
+
+fileInput.addEventListener('change', function() {
+    const file = this.files[0];
+    if (file) {
+        if (file.size > 3 * 1024 * 1024) {
+            alert("Gambar terlalu berat, Bos! Cari yang di bawah 3MB.");
+            return;
+        }
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            currentImageBase64 = e.target.result;
+            previewImg.src = currentImageBase64;
+            imagePreview.classList.remove('hidden');
+        };
+        reader.readAsDataURL(file);
+    }
+});
+
+removeImg.addEventListener('click', () => {
+    currentImageBase64 = null;
+    fileInput.value = "";
+    imagePreview.classList.add('hidden');
+});
+
+// --- FITUR SUARA (SPEECH TO TEXT) ---
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+if (SpeechRecognition) {
+    const rec = new SpeechRecognition();
     rec.lang = 'id-ID';
-    
     micBtn.addEventListener('click', () => {
         rec.start();
-        micBtn.classList.add('bg-red-500', 'animate-pulse');
+        micBtn.classList.add('mic-active');
     });
-
     rec.onresult = (e) => {
-        const hasilSuara = e.results[0][0].transcript;
-        userInput.value = hasilSuara;
-        micBtn.classList.remove('bg-red-500', 'animate-pulse');
-        
-        // OTOMATIS KIRIM
-        chatForm.dispatchEvent(new Event('submit'));
+        userInput.value = e.results[0][0].transcript;
+        micBtn.classList.remove('mic-active');
     };
-    
-    rec.onerror = () => micBtn.classList.remove('bg-red-500', 'animate-pulse');
+    rec.onerror = () => micBtn.classList.remove('mic-active');
 }
 
-// 3. Submit Chat (Tanpa Fitur Suara Keluar)
+// --- KIRIM DATA KE API ---
 chatForm.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const msg = userInput.value.trim();
-    if (!msg) return;
+    const text = userInput.value.trim();
+    if (!text && !currentImageBase64) return;
 
-    appendMessage('user', msg);
+    // Tampilkan di UI
+    appendMessage('user', text || "Menganalisis gambar...", currentImageBase64);
+    
+    // Reset Input
+    const imgToSend = currentImageBase64;
     userInput.value = '';
+    imagePreview.classList.add('hidden');
+    currentImageBase64 = null;
+    fileInput.value = "";
+
+    // Loading
+    const loaderId = 'ld-' + Date.now();
+    const loader = document.createElement('div');
+    loader.id = loaderId;
+    loader.className = 'text-slate-500 text-xs animate-pulse ml-12 mb-8';
+    loader.innerText = 'Riksan AI sedang memproses...';
+    chatArea.appendChild(loader);
 
     try {
         const res = await fetch('/api/ai', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message: msg })
+            body: JSON.stringify({ message: text, imageBase64: imgToSend })
         });
+        
         const data = await res.json();
+        document.getElementById(loaderId).remove();
+
         if (data.candidates) {
-            // Cukup tampilkan teks, tidak ada perintah .speak()
-            appendMessage('ai', data.candidates[0].content.parts[0].text);
+            const aiResponse = data.candidates[0].content.parts[0].text;
+            appendMessage('ai', aiResponse);
+            
+            // AI Bicara (TTS)
+            const speak = new SpeechSynthesisUtterance(aiResponse);
+            speak.lang = 'id-ID';
+            window.speechSynthesis.speak(speak);
         }
     } catch (err) {
-        appendMessage('ai', 'Error koneksi ke Groq API, Bos.');
+        if(document.getElementById(loaderId)) document.getElementById(loaderId).remove();
+        appendMessage('ai', 'Koneksi error, coba cek internet atau redeploy Vercel.');
     }
 });
