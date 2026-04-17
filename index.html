@@ -2,43 +2,54 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Riksan AI v3.3</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Riksan AI - Professional</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
+
     <aside class="sidebar" id="sidebar">
-        <div class="sidebar-top">
-            <button class="new-chat-btn" onclick="newChat()">+ Chat Baru</button>
+        <div class="sidebar-header">
+            <button onclick="newChat()" class="btn-new-chat">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                <span>Chat Baru</span>
+            </button>
+            <button id="close-sidebar" class="btn-icon mobile-only">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
         </div>
-        <div class="history-container" id="history-list">
-            </div>
+        <div class="history-container">
+            <div class="history-title">Hari Ini</div>
+            <div id="history-list"></div>
+        </div>
+        <div class="sidebar-footer">
+            <span>SawargiPay AI Core</span>
+        </div>
     </aside>
 
-    <div class="overlay" id="sidebar-overlay" onclick="toggleSidebar()"></div>
-
-    <div class="main-content">
-        <header class="navbar">
-            <button class="menu-btn" onclick="toggleSidebar()">☰</button>
-            <div class="model-info">Riksan AI <span>3.3</span></div>
-            <button class="menu-btn" onclick="newChat()">📝</button>
+    <main class="main-area">
+        <header class="top-header">
+            <button id="toggle-sidebar" class="btn-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+            </button>
+            <div class="header-title">Riksan AI <span>3.3</span></div>
+            <div class="header-placeholder"></div>
         </header>
 
-        <main class="chat-area" id="chat-container">
-            <div class="welcome-hero" id="welcome-screen">
-                <div class="logo-ai">✨</div>
-                <h1>Apa yang bisa saya bantu hari ini?</h1>
+        <div id="chat-container" class="chat-wrapper">
             </div>
-        </main>
 
-        <footer class="input-section">
-            <div class="input-wrapper">
-                <input type="text" id="user-input" placeholder="Tanya sesuatu..." autocomplete="off">
-                <button class="send-btn" id="send-btn" onclick="sendMessage()">↑</button>
+        <div class="input-section">
+            <div class="input-box">
+                <input type="text" id="user-input" placeholder="Kirim pesan ke Riksan AI..." onkeypress="if(event.key==='Enter') sendMessage()">
+                <button onclick="sendMessage()" class="btn-send">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+                </button>
             </div>
-            <p class="disclaimer">Riksan AI Core v3.3 dikembangkan oleh Riksan.</p>
-        </footer>
-    </div>
+            <div class="disclaimer">AI dapat membuat kesalahan. Harap verifikasi informasi penting.</div>
+        </div>
+    </main>
 
     <script src="app.js"></script>
 </body>
