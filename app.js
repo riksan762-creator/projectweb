@@ -6,17 +6,22 @@ document.addEventListener('DOMContentLoaded', () => {
     const closeBtn = document.getElementById('close-sidebar');
     const sidebar = document.getElementById('sidebar');
 
-    toggleBtn.addEventListener('click', () => {
-        if (window.innerWidth > 768) {
-            sidebar.classList.toggle('hidden');
-        } else {
-            sidebar.classList.add('active');
-        }
-    });
+    // Sidebar Toggle Logic
+    if (toggleBtn) {
+        toggleBtn.addEventListener('click', () => {
+            if (window.innerWidth > 768) {
+                sidebar.classList.toggle('hidden');
+            } else {
+                sidebar.classList.add('active');
+            }
+        });
+    }
 
-    closeBtn.addEventListener('click', () => {
-        sidebar.classList.remove('active');
-    });
+    if (closeBtn) {
+        closeBtn.addEventListener('click', () => {
+            sidebar.classList.remove('active');
+        });
+    }
 
     initApp();
 });
@@ -42,7 +47,9 @@ function newChat() {
     document.getElementById('user-input').value = '';
     showWelcome();
     renderHistory();
-    if (window.innerWidth <= 768) document.getElementById('sidebar').classList.remove('active');
+    if (window.innerWidth <= 768) {
+        document.getElementById('sidebar').classList.remove('active');
+    }
 }
 
 async function sendMessage() {
@@ -50,6 +57,7 @@ async function sendMessage() {
     const msg = input.value.trim();
     if (!msg) return;
 
+    // Hapus welcome screen jika sedang tampil
     if (document.querySelector('.welcome-msg')) {
         document.getElementById('chat-container').innerHTML = '';
     }
@@ -67,11 +75,16 @@ async function sendMessage() {
         });
         const data = await response.json();
         
-        document.getElementById(loadId).remove();
+        const loader = document.getElementById(loadId);
+        if (loader) loader.remove();
+        
         appendMessage('ai', data.reply);
         saveChat(currentChatId, msg, data.reply);
     } catch (e) {
-        document.getElementById(loadId).querySelector('.message-content').innerText = "Gagal terhubung ke server.";
+        const loader = document.getElementById(loadId);
+        if (loader) {
+            loader.querySelector('.message-content').innerText = "Gagal terhubung ke server.";
+        }
     }
 }
 
@@ -80,12 +93,11 @@ function appendMessage(role, text) {
     const row = document.createElement('div');
     row.className = `message-row ${role}-row`;
     
-    // Ikon sangat minimalis, tidak pakai emoji aneh-aneh
+    // Avatar Minimalis Profesional
     const avatar = role === 'user' ? 
         '<div class="avatar avatar-user">R</div>' : 
         '<div class="avatar avatar-ai"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 1 0 10 10H12V2z"/><path d="M12 12 2.1 7.1"/></svg></div>';
 
-    // Memastikan baris baru pada teks dirender dengan benar
     const formattedText = text.replace(/\n/g, '<br>');
 
     row.innerHTML = `
@@ -98,7 +110,9 @@ function appendMessage(role, text) {
 }
 
 function saveChat(id, userMsg, aiMsg) {
-    if (!chatHistory[id]) chatHistory[id] = { title: userMsg.substring(0, 25) + '...', chats: [] };
+    if (!chatHistory[id]) {
+        chatHistory[id] = { title: userMsg.substring(0, 25) + '...', chats: [] };
+    }
     chatHistory[id].chats.push({ user: userMsg, ai: aiMsg });
     localStorage.setItem('riksan_pro_db', JSON.stringify(chatHistory));
     renderHistory();
@@ -106,7 +120,9 @@ function saveChat(id, userMsg, aiMsg) {
 
 function renderHistory() {
     const list = document.getElementById('history-list');
+    if (!list) return;
     list.innerHTML = '';
+    
     Object.keys(chatHistory).sort().reverse().forEach(id => {
         const div = document.createElement('div');
         div.className = `history-item ${id == currentChatId ? 'active-item' : ''}`;
@@ -118,13 +134,20 @@ function renderHistory() {
 
 function loadChat(id) {
     currentChatId = id;
-    document.getElementById('chat-container').innerHTML = '';
-    chatHistory[id].chats.forEach(c => {
-        appendMessage('user', c.user);
-        appendMessage('ai', c.ai);
-    });
+    const container = document.getElementById('chat-container');
+    container.innerHTML = '';
+    
+    if (chatHistory[id]) {
+        chatHistory[id].chats.forEach(c => {
+            appendMessage('user', c.user);
+            appendMessage('ai', c.ai);
+        });
+    }
+    
     renderHistory();
-    if (window.innerWidth <= 768) document.getElementById('sidebar').classList.remove('active');
+    if (window.innerWidth <= 768) {
+        document.getElementById('sidebar').classList.remove('active');
+    }
 }
 
 function addLoading() {
@@ -133,10 +156,13 @@ function addLoading() {
     const row = document.createElement('div');
     row.id = id;
     row.className = 'message-row ai-row';
+    
+    // Tampilan Loading Profesional: "Sedang berpikir..."
     row.innerHTML = `
         <div class="avatar avatar-ai"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 1 0 10 10H12V2z"/><path d="M12 12 2.1 7.1"/></svg></div>
-        <div class="message-content" style="color: #b4b4b4;">Menganalisis...</div>
+        <div class="message-content" style="color: #80868b; font-style: italic;">Sedang berpikir...</div>
     `;
+    
     container.appendChild(row);
     container.scrollTop = container.scrollHeight;
     return id;
