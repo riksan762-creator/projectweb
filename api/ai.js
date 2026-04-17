@@ -10,9 +10,9 @@ export default async function handler(req, res) {
     try {
         const { message, imageBase64 } = req.body;
 
-        // Gunakan groq/compound untuk browsing internet (Real-time 2026)
-        // Jika ada gambar, pakai llama-3.2-90b-vision-preview
-        const modelTarget = imageBase64 ? "llama-3.2-90b-vision-preview" : "groq/compound";
+        // Berdasarkan dokumen: llama-3.3-70b-versatile adalah model utama
+        // Jika ada gambar, pakai model vision
+        const modelTarget = imageBase64 ? "llama-3.2-90b-vision-preview" : "llama-3.3-70b-versatile";
 
         const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
             method: "POST",
@@ -25,15 +25,14 @@ export default async function handler(req, res) {
                 messages: [
                     { 
                         role: "system", 
-                        content: `Kamu adalah Riksan AI v2.0 (April 2026). 
-                        Pemilikmu: Riksan (CTO SawargiPay).
-                        Tugas: Gunakan kemampuan browsing untuk info terbaru. 
-                        JANGAN PERNAH bilang data terbatas sampai 2023. 
-                        Gaya: Santai, cerdas, panggil 'Bos'. Jawab HANYA teks.` 
+                        content: "Kamu adalah Riksan AI (CTO SawargiPay). Hari ini 17 April 2026. Gunakan analisis cerdas. Jawab santai, panggil 'Bos', dan jangan pakai suara." 
                     },
                     { role: "user", content: message }
                 ],
-                temperature: 0.3
+                // Fitur baru di dokumen: Citation diaktifkan agar lebih akurat
+                citation_options: "enabled", 
+                temperature: 0.7,
+                max_completion_tokens: 1024
             })
         });
 
@@ -44,10 +43,6 @@ export default async function handler(req, res) {
                 candidates: [{
                     content: { parts: [{ text: data.choices[0].message.content }] }
                 }]
-            });
-        } else {
-            res.status(200).json({
-                candidates: [{ content: { parts: [{ text: "Gagal ambil data terbaru, Bos. Coba lagi!" }] } }]
             });
         }
     } catch (error) {
