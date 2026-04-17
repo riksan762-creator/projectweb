@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Riksan AI - Gemini Edition</title>
+    <title>Riksan AI - Agent</title>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
@@ -11,24 +11,33 @@
 
     <aside class="sidebar">
         <button onclick="newChat()" class="new-chat-btn">
-            <span style="font-size: 20px;">+</span> Chat Baru
+            <span>+</span> New Chat
         </button>
-        <div style="padding-left: 15px; font-size: 12px; color: #80868b; margin-bottom: 10px;">Riwayat</div>
+        <div class="history-label">Riwayat</div>
         <div id="history-list" style="flex: 1; overflow-y: auto;"></div>
+        <div style="font-size: 10px; color: #444746; text-align: center; margin-top: auto;">SawargiPay Digital v2.0</div>
     </aside>
 
     <main>
+        <header class="chat-header">
+            <div class="brand flex items-center gap-3">
+                <span class="font-normal">Riksan AI</span>
+                <span style="font-size: 10px; color: #3b82f6; background: rgba(59,130,246,0.1); padding: 2px 6px; border-radius: 4px;">PRO</span>
+            </div>
+            <div class="logo">R</div>
+        </header>
+
         <div id="chat-box" class="chat-container">
             </div>
 
         <div class="input-area">
-            <div class="input-box">
-                <input type="text" id="user-input" placeholder="Tuliskan perintah..." onkeypress="if(event.key==='Enter') sendMessage()">
+            <div class="input-box-wrapper">
+                <input type="text" id="user-input" placeholder="Tanyakan apa saja..." onkeypress="if(event.key==='Enter') sendMessage()">
                 <button onclick="sendMessage()" class="send-btn">
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
                 </button>
             </div>
-            <p style="font-size: 11px; text-align: center; color: #5f6368; margin-top: 10px;">Riksan AI powered by Groq Llama 3.3</p>
+            <p style="font-size: 11px; text-align: center; color: #444746; margin-top: 10px;">Riksan AI powered by Groq Llama 3.3</p>
         </div>
     </main>
 
