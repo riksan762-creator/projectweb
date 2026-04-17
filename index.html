@@ -7,35 +7,36 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="sidebar" id="sidebar">
-        <div class="sidebar-header">
-            <button onclick="newChat()" class="new-chat-btn">+ Chat Baru</button>
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-top">
+            <button class="new-chat-btn" onclick="newChat()">+ Chat Baru</button>
         </div>
-        <div class="history-list" id="history-list"></div>
-    </div>
-    
-    <div class="overlay" id="overlay" onclick="toggleSidebar()"></div>
+        <div class="history-container" id="history-list">
+            </div>
+    </aside>
+
+    <div class="overlay" id="sidebar-overlay" onclick="toggleSidebar()"></div>
 
     <div class="main-content">
-        <header class="top-nav">
-            <button class="icon-btn" onclick="toggleSidebar()">☰</button>
-            <div class="model-name">Riksan AI <span>3.3</span></div>
-            <button class="icon-btn" onclick="newChat()">📝</button>
+        <header class="navbar">
+            <button class="menu-btn" onclick="toggleSidebar()">☰</button>
+            <div class="model-info">Riksan AI <span>3.3</span></div>
+            <button class="menu-btn" onclick="newChat()">📝</button>
         </header>
 
-        <main class="chat-container" id="chat-container">
-            <div class="welcome-screen" id="welcome-screen">
-                <div class="ai-logo">✨</div>
-                <h1>Ada yang bisa saya bantu?</h1>
+        <main class="chat-area" id="chat-container">
+            <div class="welcome-hero" id="welcome-screen">
+                <div class="logo-ai">✨</div>
+                <h1>Apa yang bisa saya bantu hari ini?</h1>
             </div>
         </main>
 
-        <footer class="input-area">
+        <footer class="input-section">
             <div class="input-wrapper">
-                <input type="text" id="user-input" placeholder="Tanya Riksan AI..." autocomplete="off">
-                <button id="send-btn" onclick="sendMessage()">↑</button>
+                <input type="text" id="user-input" placeholder="Tanya sesuatu..." autocomplete="off">
+                <button class="send-btn" id="send-btn" onclick="sendMessage()">↑</button>
             </div>
-            <p class="footer-note">Riksan AI dapat membuat kesalahan. Periksa informasi penting.</p>
+            <p class="disclaimer">Riksan AI Core v3.3 dikembangkan oleh Riksan.</p>
         </footer>
     </div>
 
