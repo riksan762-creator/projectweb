@@ -1,5 +1,5 @@
 export default async function handler(req, res) {
-    const apiKey = process.env.DEEPSEEK_API_KEY;
+    const apiKey = process.env.GROQ_API_KEY;
 
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -8,46 +8,42 @@ export default async function handler(req, res) {
     if (req.method === 'OPTIONS') return res.status(200).end();
 
     if (!apiKey) {
-        return res.status(200).json({ reply: "Bos, API Key belum dipasang di Vercel!" });
+        return res.status(200).json({ reply: "Bos, API Key Groq belum dipasang di Vercel!" });
     }
 
     try {
         const { message } = req.body;
 
-        const response = await fetch("https://api.deepseek.com/v1/chat/completions", {
+        const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
                 "Authorization": `Bearer ${apiKey.trim()}`
             },
             body: JSON.stringify({
-                model: "deepseek-chat",
+                // Model Llama 3.3 70B: Paling pintar dan setara ChatGPT-4o
+                model: "llama-3.3-70b-versatile",
                 messages: [
                     { 
                         role: "system", 
-                        content: "Kamu adalah Riksan AI (DeepSeek V3.2). Pemilik: Riksan (CTO SawargiPay). Jawab santai, cerdas, panggil 'Bos'. JANGAN PAKAI SUARA." 
+                        content: "Kamu adalah Riksan AI (Llama 3.3 Engine). Pemilik: Riksan (CTO SawargiPay). Jawab dengan gaya asisten profesional tapi santai, panggil 'Bos'. Berikan jawaban yang cerdas ala ChatGPT." 
                     },
                     { role: "user", content: message }
                 ],
-                max_tokens: 2048,
-                stream: false
+                temperature: 0.7,
+                max_tokens: 2048
             })
         });
 
         const data = await response.json();
 
-        if (data.error) {
-            return res.status(200).json({ reply: `DeepSeek Error: ${data.error.message}` });
-        }
-
         if (data.choices && data.choices[0]) {
-            // KIRIM SEBAGAI 'reply'
             res.status(200).json({ reply: data.choices[0].message.content });
         } else {
-            res.status(200).json({ reply: "Respon kosong. Cek saldo DeepSeek, Bos!" });
+            res.status(200).json({ reply: "Duh Bos, Groq lagi pusing. Coba lagi ya!" });
         }
 
     } catch (error) {
-        res.status(500).json({ reply: "Error: " + error.message });
+        res.status(500).json({ reply: "Error Groq: " + error.message });
     }
 }
