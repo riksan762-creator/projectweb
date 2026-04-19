@@ -1,38 +1,45 @@
 export default async function handler(req, res) {
     const apiKey = process.env.GROQ_API_KEY;
 
-    // 1. Header CORS & Safety
+    // 1. Headers & CORS
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
     if (req.method === 'OPTIONS') return res.status(200).end();
-    if (req.method !== 'POST') return res.status(405).json({ error: "Gunakan POST" });
+    if (req.method !== 'POST') return res.status(405).json({ error: "Method Not Allowed" });
 
     try {
-        // Ambil data (imageBase64 dari app.js dikirim sebagai imageBase64 atau image)
-        const { message, imageBase64, image } = req.body;
-        const finalImage = imageBase64 || image; // Proteksi jika salah satu key kosong
+        const { message, imageBase64 } = req.body;
 
-        // 2. Pemilihan Model (Vision vs Text)
-        // Llama 3.2 90B Vision untuk gambar, Llama 3.3 70B untuk coding & teks dewa.
-        const modelId = finalImage ? "llama-3.2-90b-vision-preview" : "llama-3.3-70b-versatile";
+        // Pemilihan Model: Vision untuk gambar, Versatile untuk kodingan berat
+        const modelId = imageBase64 ? "llama-3.2-90b-vision-preview" : "llama-3.3-70b-versatile";
 
-        // 3. Susun Konten Multimodal
+        // Susun Konten Multimodal
         const contentArray = [];
+        
+        // Tambahkan instruksi spesifik agar output kodenya rapi
+        const systemPrompt = `Kamu adalah Riksan AI v3.3 Core (CTO Mode). 
+        Sekarang: April 2026. 
+        Keahlian: Fullstack Coding, Matematika Diskrit, & Vision Analysis.
+        Instruksi: 
+        1. Gunakan Markdown LENGKAP untuk kode (contoh: \`\`\`javascript).
+        2. Jika ada rumus matematika, gunakan format yang jelas.
+        3. Gaya bicara: Cerdas, teknis, panggil 'Bos'.
+        4. JANGAN potong jawaban (max_tokens tinggi).`;
+
         contentArray.push({ 
             type: "text", 
-            text: message || (finalImage ? "Bos, coba cek gambar ini kodingannya bener gak?" : "Halo!") 
+            text: message || "Analisis secara mendalam, Bos!" 
         });
 
-        if (finalImage) {
+        if (imageBase64) {
             contentArray.push({
                 type: "image_url",
-                image_url: { url: finalImage }
+                image_url: { url: imageBase64 }
             });
         }
 
-        // 4. Request ke Groq
         const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
             method: "POST",
             headers: {
@@ -42,42 +49,34 @@ export default async function handler(req, res) {
             body: JSON.stringify({
                 model: modelId,
                 messages: [
-                    { 
-                        role: "system", 
-                        content: `Kamu adalah Riksan AI v3.3 Core, asisten pribadi Riksan (CTO SawargiPay). 
-                        Sekarang: April 2026. 
-                        Tugas: Analisis gambar, buat script/coding, dan bantu operasional SawargiPay.
-                        Style: Cerdas, teknis, panggil 'Bos', gunakan Markdown untuk kode.` 
-                    },
+                    { role: "system", content: systemPrompt },
                     { role: "user", content: contentArray }
                 ],
-                temperature: 0.6, // Turunkan suhu dikit agar coding lebih presisi
-                max_tokens: 2048
+                temperature: 0.5, // Lebih rendah agar kodingan & logika matematikanya presisi
+                max_tokens: 3000, // Ditingkatkan agar script panjang tidak terpotong
+                top_p: 1
             })
         });
 
         const data = await response.json();
 
-        // 5. Output Sinkron dengan app.js
         if (data.choices && data.choices[0]) {
             const aiText = data.choices[0].message.content;
             
-            // Kirim balik dalam format yang dipahami app.js (mendukung struktur .candidates atau .reply)
+            // Format response yang diharapkan app.js
             res.status(200).json({
                 reply: aiText,
-                candidates: [{
-                    content: { parts: [{ text: aiText }] }
-                }]
+                success: true
             });
         } else {
-            throw new Error(data.error?.message || "Groq sedang maintenance");
+            throw new Error(data.error?.message || "Gagal mendapatkan respon dari AI");
         }
 
     } catch (error) {
-        console.error("Internal Error:", error);
+        console.error("Backend Error:", error);
         res.status(500).json({ 
-            reply: "Waduh Bos, otak saya lagi konslet dikit. Coba cek API Key atau ukuran fotonya!",
-            error: error.message 
+            reply: "Waduh Bos, ada masalah di 'otak' server. Cek logs Vercel atau API Key!",
+            success: false 
         });
     }
 }
