@@ -1,227 +1,49 @@
-:root {
-    --bg-main: #212121;
-    --bg-sidebar: #171717;
-    --bg-input: #2f2f2f;
-    --text-primary: #ececec;
-    --text-secondary: #b4b4b4;
-    --border-color: rgba(255, 255, 255, 0.1);
-    --accent: #10a37f;
-}
-
-/* Reset Dasar */
-* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-
 body {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-    background-color: var(--bg-main);
-    color: var(--text-primary);
-    display: flex;
-    height: 100vh;
-    width: 100vw;
-    overflow: hidden;
-    font-size: 15px;
+    background-color: #0d0d0d;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
-/* SIDEBAR STRATEGY */
-.sidebar {
-    width: 260px;
-    background-color: var(--bg-sidebar);
-    display: flex;
-    flex-direction: column;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    z-index: 1000;
-    border-right: 1px solid var(--border-color);
+.custom-scroll::-webkit-scrollbar {
+    width: 6px;
+}
+.custom-scroll::-webkit-scrollbar-thumb {
+    background: #2f2f2f;
+    border-radius: 10px;
 }
 
-/* Class untuk JS Toggle */
-.sidebar.hidden {
-    margin-left: -260px;
+.user-bubble {
+    background-color: #2f2f2f;
+    border-radius: 20px;
+    padding: 12px 20px;
+    color: #ececec;
 }
 
-.sidebar-header { padding: 15px; display: flex; gap: 10px; align-items: center; }
-
-.btn-new-chat {
-    flex: 1;
-    background: transparent;
-    border: 1px solid var(--border-color);
-    color: var(--text-primary);
-    padding: 10px;
-    border-radius: 8px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    cursor: pointer;
-    font-size: 14px;
-    transition: background 0.2s;
-}
-.btn-new-chat:hover { background: rgba(255,255,255,0.05); }
-
-/* MAIN CONTENT */
-.main-area {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    min-width: 0; /* Penting agar tidak overflow */
-    position: relative;
+.ai-bubble {
+    padding: 12px 0;
+    color: #ececec;
 }
 
-.top-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 10px 15px;
-    height: 60px;
+.mic-active {
+    color: #ef4444 !important;
+    background: rgba(239, 68, 68, 0.1) !important;
+    animation: pulse 1.5s infinite;
 }
 
-.header-title {
-    font-weight: 600;
-    color: var(--text-secondary);
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-.header-title span {
-    background: #333;
-    font-size: 10px;
-    padding: 2px 6px;
-    border-radius: 4px;
-    color: #8ab4f8;
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+    100% { transform: scale(1); }
 }
 
-/* CHAT AREA (CENTERED LOGIC) */
-.chat-wrapper {
-    flex: 1;
-    overflow-y: auto;
-    scroll-behavior: smooth;
-    padding-bottom: 20px;
+textarea {
+    line-height: 1.5;
 }
 
-.chat-container-inner {
-    max-width: 768px;
-    margin: 0 auto;
-    width: 100%;
+/* Animasi masuk pesan */
+.message-in {
+    animation: fadeIn 0.3s ease-out;
 }
-
-.welcome-msg {
-    height: 60vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-}
-.welcome-msg h1 { font-size: 24px; font-weight: 500; opacity: 0.9; }
-
-/* MESSAGE BUBBLES */
-.message-row {
-    display: flex;
-    padding: 24px 20px;
-    gap: 18px;
-}
-
-.user-row { background: rgba(255, 255, 255, 0.02); }
-
-.avatar {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%; /* Bulat sempurna seperti gambar */
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    font-size: 14px;
-    font-weight: bold;
-}
-.avatar-user { background: #5436da; color: white; }
-.avatar-ai { background: var(--accent); color: white; }
-
-.message-content {
-    flex: 1;
-    line-height: 1.6;
-    color: var(--text-primary);
-    word-break: break-word;
-}
-
-/* INPUT SECTION (FLOATING) */
-.input-section {
-    padding: 15px 20px 25px 20px;
-    max-width: 800px;
-    margin: 0 auto;
-    width: 100%;
-}
-
-.input-box {
-    background-color: var(--bg-input);
-    border: 1px solid var(--border-color);
-    border-radius: 14px;
-    display: flex;
-    align-items: center;
-    padding: 8px 14px;
-    transition: border-color 0.2s;
-}
-.input-box:focus-within { border-color: rgba(255,255,255,0.3); }
-
-.input-box input {
-    flex: 1;
-    background: transparent;
-    border: none;
-    color: var(--text-primary);
-    font-size: 16px;
-    padding: 8px 0;
-    outline: none;
-}
-
-.btn-send {
-    background: #fff;
-    color: #000;
-    border: none;
-    width: 32px;
-    height: 32px;
-    border-radius: 8px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: opacity 0.2s;
-}
-.btn-send:hover { opacity: 0.8; }
-
-.disclaimer {
-    text-align: center;
-    font-size: 11px;
-    color: var(--text-secondary);
-    margin-top: 10px;
-}
-
-/* ANIMASI LOADING */
-.thinking {
-    font-style: italic;
-    color: var(--text-secondary);
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-/* MOBILE RESPONSIVE */
-@media (max-width: 768px) {
-    .sidebar {
-        position: fixed;
-        height: 100%;
-        left: 0;
-        top: 0;
-    }
-    .sidebar:not(.active) {
-        transform: translateX(-100%);
-    }
-    .mobile-only { display: block; }
-}
-
-.user-avatar-small {
-    width: 30px;
-    height: 30px;
-    background: #5436da;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 12px;
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(5px); }
+    to { opacity: 1; transform: translateY(0); }
 }
