@@ -5,7 +5,7 @@ export const config = {
 export default async function handler(req, res) {
     const apiKey = process.env.GROQ_API_KEY;
     const searchApiKey = process.env.SERPER_API_KEY;
-    const removeBgKey = process.env.REMOVE_BG_API_KEY; // Tambahkan key ini di Environment Variables Vercel
+    const stabilityKey = process.env.STABILITY_API_KEY;
 
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -16,35 +16,29 @@ export default async function handler(req, res) {
 
     try {
         const { message, imageBase64 } = req.body;
-        let webResults = "";
-        let tiktokMetadata = null;
-        let processedImage = null; // Container hasil remove background
+        let globalContext = "";
+        let tiktokInfo = null;
+        let aiGeneratedImg = null;
 
-        // --- 1. MODUL REMOVE BACKGROUND (FITUR BARU) ---
-        const isRemoveBgTask = /hapus bg|bersihkan|remove bg|background/i.test(message);
-        if (isRemoveBgTask && imageBase64 && removeBgKey) {
+        // --- 1. UNIVERSAL SEARCH ENGINE (Cari Apa Saja!) ---
+        // Sistem otomatis mencari jika ada pertanyaan yang butuh info update/fakta eksternal
+        const looksLikeQuestion = /apa|siapa|kapan|dimana|kenapa|bagaimana|cari|berita|info|harga|tutorial/i.test(message);
+        
+        if (looksLikeQuestion && searchApiKey) {
             try {
-                // Membersihkan prefix base64 jika ada
-                const pureBase64 = imageBase64.split(',')[1] || imageBase64;
-                
-                const rbRes = await fetch("https://api.remove.bg/v1.0/removebg", {
+                const sRes = await fetch("https://google.serper.dev/search", {
                     method: "POST",
-                    headers: { "X-Api-Key": removeBgKey, "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        image_file_b64: pureBase64,
-                        size: "auto",
-                        format: "png"
-                    })
+                    headers: { "X-API-KEY": searchApiKey, "Content-Type": "application/json" },
+                    body: JSON.stringify({ q: message, gl: "id", hl: "id", num: 5 })
                 });
-
-                if (rbRes.ok) {
-                    const buffer = await rbRes.arrayBuffer();
-                    processedImage = Buffer.from(buffer).toString('base64');
-                }
-            } catch (e) { console.error("Remove.bg Error."); }
+                const sData = await sRes.json();
+                // Gabungkan hasil organik dan knowledge graph untuk jawaban lebih "pintar"
+                globalContext = sData.organic?.map(s => `[Source: ${s.title}]: ${s.snippet}`).join("\n") || "";
+                if (sData.answerBox) globalContext += `\n[Direct Answer]: ${sData.answerBox.answer || sData.answerBox.snippet}`;
+            } catch (e) { console.error("Universal Search Error"); }
         }
 
-        // --- 2. MODUL TIKTOK (TETAP ADA) ---
+        // --- 2. TIKTOK DOWNLOADER MASTER ---
         const tiktokRegex = /https?:\/\/(www\.|v[mt]\.)?tiktok\.com\/[\w\d\/]+/i;
         if (tiktokRegex.test(message)) {
             try {
@@ -52,76 +46,74 @@ export default async function handler(req, res) {
                 const ttRes = await fetch(`https://www.tikwm.com/api/?url=${tiktokUrl}`);
                 const ttData = await ttRes.json();
                 if (ttData.code === 0) {
-                    tiktokMetadata = ttData.data;
-                    webResults = `[TIKTOK]: ${tiktokMetadata.title} by ${tiktokMetadata.author.nickname}`;
+                    tiktokInfo = ttData.data;
+                    globalContext += `\n[TIKTOK DETECTED]: ${tiktokInfo.title}`;
                 }
-            } catch (e) { console.error("TikTok Scraper Error."); }
+            } catch (e) { console.error("TikTok Error"); }
         }
 
-        // --- 3. MODUL SEARCH & COMPLEX TASK (TETAP ADA) ---
-        const isComplexTask = /hitung|rumus|matematika|kalkulus|algoritma|coding|script/i.test(message);
-        const needsSearch = /cari|search|berita|terbaru|update/i.test(message);
-        
-        if (needsSearch && !imageBase64 && !tiktokMetadata && searchApiKey) {
+        // --- 3. STABILITY AI (GENERATE APA SAJA) ---
+        const isVisual = /buat|gambar|foto|desain|render|visual|logo/i.test(message);
+        if (isVisual && stabilityKey) {
             try {
-                const searchRes = await fetch("https://google.serper.dev/search", {
-                    method: "POST",
-                    headers: { "X-API-KEY": searchApiKey, "Content-Type": "application/json" },
-                    body: JSON.stringify({ q: message, gl: "id", hl: "id", num: 4 })
-                });
-                if (searchRes.ok) {
-                    const searchData = await searchRes.json();
-                    webResults = searchData.organic?.map(s => `[${s.title}]: ${s.snippet}`).join("\n") || "";
+                const engineId = 'stable-diffusion-v1-6';
+                const endpoint = imageBase64 ? "image-to-image" : "text-to-image";
+                const body = {
+                    cfg_scale: 7, height: 512, width: 512, steps: 30,
+                    text_prompts: [{ text: `${message}, ultra high quality, detailed, 4k`, weight: 1 }],
+                };
+                if (imageBase64) {
+                    body.init_image = imageBase64.split(',')[1] || imageBase64;
+                    body.image_strength = 0.4;
                 }
-            } catch (e) { console.error("Search module error."); }
+                const sRes = await fetch(`https://api.stability.ai/v1/generation/${engineId}/${endpoint}`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", Accept: "application/json", Authorization: `Bearer ${stabilityKey}` },
+                    body: JSON.stringify(body),
+                });
+                if (sRes.ok) {
+                    const sData = await sRes.json();
+                    aiGeneratedImg = sData.artifacts[0].base64;
+                }
+            } catch (e) { console.error("Stability AI Error"); }
         }
 
-        const modelId = imageBase64 ? "llama-3.2-90b-vision-preview" : "llama-3.3-70b-versatile";
+        // --- 4. GROQ AI SUPREME BRAIN ---
+        const systemPrompt = `Kamu adalah Riksan AI v4.0. CTO: Riksan (SawargiPay).
+        Identity: Supreme AI Master Coding, Global Finance Expert, & Universal Knowledge Specialist.
+        Tugas: Kamu bisa menjawab APAPUN. Gunakan data pencarian yang disediakan untuk menjawab pertanyaan random dari Bos.
+        Keahlian: Coding, Matematika (LaTeX), Analisis Pasar, Sejarah, Sains, hingga Gosip Populer.
+        Gaya: Cerdas, panggil 'Bos', profesional, gunakan Markdown rapi.
+        Data Pencarian Real-time: ${globalContext}`;
 
-        // --- 4. SYSTEM PROMPT (SUPREME CORE) ---
-        const systemPrompt = `Kamu adalah Riksan AI v3.5 (Supreme Core). Dev: Riksan (CTO SawargiPay).
-        Identity: April 2026.
-        Logika Guru Pintar & Master Coding tetap aktif. 
-        Jika gambar diproses (Remove BG), sapa Bos dan beritahu hasilnya sudah siap.`;
-
-        const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
             method: "POST",
             headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
             body: JSON.stringify({
-                model: modelId,
-                messages: [
-                    { role: "system", content: systemPrompt },
-                    { role: "user", content: [{ type: "text", text: message || "Analisis ini, Bos." }, ...(imageBase64 ? [{ type: "image_url", image_url: { url: imageBase64 } }] : [])] }
-                ],
-                temperature: 0.2,
-                max_tokens: 3000
+                model: imageBase64 ? "llama-3.2-90b-vision-preview" : "llama-3.3-70b-versatile",
+                messages: [{ role: "system", content: systemPrompt }, { role: "user", content: message }],
+                temperature: 0.3
             })
         });
 
-        const data = await response.json();
+        const data = await groqRes.json();
+        let aiReply = data.choices[0].message.content;
 
-        if (data.choices && data.choices[0]) {
-            let aiReply = data.choices[0].message.content;
+        // --- 5. FINAL PACKAGING (OUTPUT RAPI) ---
 
-            // Output khusus TikTok (Force Download)
-            if (tiktokMetadata) {
-                const dl = `https://www.tikwm.com/video/media/play/${tiktokMetadata.id}.mp4`;
-                aiReply += `\n\n### 📥 DOWNLOAD TIKTOK\n**[👉 SIMPAN KE GALERI](${dl})**`;
-            }
-
-            // Output khusus Remove.bg (Tampilkan Tombol Download Hasil)
-            if (processedImage) {
-                aiReply += `\n\n### 🖼️ HASIL PENGHAPUSAN BG\n`;
-                aiReply += `**[👉 DOWNLOAD HASIL TRANSPARAN](data:image/png;base64,${processedImage})**\n`;
-                aiReply += `\n> Background sudah bersih, Bos! Tinggal pakai buat jualan di SawargiPay.`;
-            }
-
-            res.status(200).json({ reply: aiReply, success: true });
-        } else {
-            throw new Error("API error.");
+        // TikTok Output
+        if (tiktokInfo) {
+            aiReply += `\n\n---\n### 📥 TIKTOK DOWNLOADER\n- **Judul**: ${tiktokInfo.title}\n- **Creator**: @${tiktokInfo.author.nickname}\n\n**[👉 KLIK DISINI UNTUK DOWNLOAD/SIMPAN](${tiktokInfo.play})**\n> *Bos bisa buka link ini di Chrome/Safari lalu tahan video untuk simpan ke galeri.*`;
         }
 
+        // Stability AI Output
+        if (aiGeneratedImg) {
+            aiReply += `\n\n---\n### 🎨 AI VISUAL RESULT\n![Result](data:image/png;base64,${aiGeneratedImg})\n\n**[👉 SIMPAN GAMBAR KE GALERI](data:image/png;base64,${aiGeneratedImg})**`;
+        }
+
+        res.status(200).json({ reply: aiReply, success: true });
+
     } catch (error) {
-        res.status(500).json({ reply: "Duh Bos, server lagi pusing!", success: false });
+        res.status(500).json({ reply: "Duh Bos, koneksi otak saya lagi terganggu!", success: false });
     }
 }
