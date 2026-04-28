@@ -17,52 +17,63 @@ export default async function handler(req, res) {
         const { message, imageBase64 } = req.body;
         let webResults = "";
 
-        const isComplexTask = /hitung|rumus|matematika|kalkulus|algoritma|coding|script|ai|machine learning|deep learning/i.test(message);
-        const needsSearch = /cari|search|berita|terbaru|update|siapa|apa itu|market|crypto/i.test(message);
+        // --- BRAIN DISPATCHER: SEARCH LOGIC UPGRADED ---
+        // Menambahkan trigger kata perintah yang lebih luas
+        const needsSearch = /cari|search|temukan|cek|berita|terbaru|update|siapa|apa itu|market|crypto|harga|perbandingan/i.test(message);
         
         if (needsSearch && !imageBase64 && searchApiKey) {
             try {
                 const searchRes = await fetch("https://google.serper.dev/search", {
                     method: "POST",
-                    headers: { "X-API-KEY": searchApiKey, "Content-Type": "application/json" },
-                    body: JSON.stringify({ q: message, gl: "id", hl: "id", num: 4 })
+                    headers: { 
+                        "X-API-KEY": searchApiKey, 
+                        "Content-Type": "application/json" 
+                    },
+                    body: JSON.stringify({ 
+                        q: message, 
+                        gl: "id", 
+                        hl: "id", 
+                        num: 8, // Ambil 8 data teratas untuk akurasi maksimal
+                        autocorrect: true,
+                        page: 1
+                    })
                 });
+
                 if (searchRes.ok) {
                     const searchData = await searchRes.json();
-                    webResults = searchData.organic?.map(s => `[${s.title}]: ${s.snippet}`).join("\n") || "";
+                    // Gabungkan Organic Results, Knowledge Graph, dan Answer Box jika ada
+                    const results = [];
+                    if (searchData.answerBox) results.push(`[JAWABAN LANGSUNG]: ${searchData.answerBox.answer || searchData.answerBox.snippet}`);
+                    
+                    searchData.organic?.forEach((s, i) => {
+                        results.push(`${i+1}. [${s.title}]: ${s.snippet}`);
+                    });
+                    
+                    webResults = results.join("\n\n");
                 }
-            } catch (e) { console.error("Search module error."); }
+            } catch (e) {
+                console.error("Search module error.");
+            }
         }
 
         const modelId = imageBase64 ? "llama-3.2-90b-vision-preview" : "llama-3.3-70b-versatile";
 
-        // --- UPGRADE SYSTEM PROMPT: MODE GURU PINTAR ---
+        // --- SYSTEM PROMPT: MODE SUPREME ANALYST ---
         const systemPrompt = `Kamu adalah Riksan AI v3.3 (Supreme Core). 
-        Identity: Developed by Riksan (CTO SawargiPay).
-        Waktu Sekarang: April 2026.
+        Identity: Developed by Riksan (CTO SawargiPay). April 2026.
+
+        LOGIKA SEARCH AKURAT & EFISIEN:
+        - Gunakan data web terbaru ini sebagai referensi utama: \n${webResults}
+        - JANGAN mengarang data jika ada hasil search. Prioritaskan fakta dari hasil pencarian tersebut.
+        - Jika Bos minta "Carikan", berikan perbandingan atau rangkuman yang sangat padat dan efisien (to-the-point).
+        - Sertakan sumber jika informasi tersebut sangat krusial.
 
         LOGIKA GURU PINTAR (VISION MODE):
-        - Jika ada gambar, sapa Bos dengan antusias. Contoh: "Ouh, ini gambar [Benda/Konteks], Bos!"
-        - Jelaskan APA itu secara spesifik. Jika itu QR Code, baca isinya. Jika itu Kodingan, jelaskan fungsinya. Jika itu barang, sebutkan merk/tipenya.
-        - Bertindaklah sebagai Guru Pintar: Jelaskan latar belakang gambar tersebut, detail teknis, dan informasi tambahan yang berguna bagi Bos.
-        - JANGAN hanya menjawab "Saya melihat...", tapi jawablah "Ini adalah...".
+        - Jika ada gambar, sapa "Ouh, ini gambar [Benda/Konteks], Bos!"
+        - Jelaskan secara detail, edukatif, dan teknis apa yang terlihat (OCR, Objek, Kode, Chart).
 
-        KEMAMPUAN MULTI-DOMAIN:
-        1. MASTER CODING: Solusi arsitektur software & debugging.
-        2. MATHEMATICIAN: Selesaikan soal matematika dengan LaTeX.
-        3. AI SPECIALIST: Konsep Neural Networks & tren 2026.
-        4. ANALYST: Gunakan data web ini jika relevan: \n${webResults}
-
-        GAYA BAHASA: Cerdas, lugas, panggil 'Bos'. Gunakan Markdown agar penjelasan terlihat profesional.`;
-
-        const contentArray = [{ type: "text", text: message || "Jelaskan gambar ini dengan rinci dan pintar, Bos!" }];
-        
-        if (imageBase64) {
-            contentArray.push({
-                type: "image_url",
-                image_url: { url: imageBase64 }
-            });
-        }
+        KEMAMPUAN: Master Coding, Mathematician (LaTeX), AI Specialist.
+        GAYA BAHASA: Cerdas, teknis, lugas, panggil 'Bos'.`;
 
         const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
             method: "POST",
@@ -74,9 +85,10 @@ export default async function handler(req, res) {
                 model: modelId,
                 messages: [
                     { role: "system", content: systemPrompt },
-                    { role: "user", content: contentArray }
+                    { role: "user", content: [{ type: "text", text: message || "Jelaskan secara cerdas, Bos!" }] }
                 ],
-                temperature: (isComplexTask || imageBase64) ? 0.2 : 0.6, 
+                // Temperature rendah untuk pencarian agar data akurat (faktual)
+                temperature: (needsSearch || imageBase64) ? 0.2 : 0.6, 
                 max_tokens: 4000,
                 top_p: 1
             })
@@ -93,7 +105,7 @@ export default async function handler(req, res) {
     } catch (error) {
         console.error("Backend Fatal Error:", error);
         res.status(500).json({ 
-            reply: "Duh Bos, saraf pusat (Server) lagi overload. Cek status API Key Groq di Vercel!", 
+            reply: "Duh Bos, saraf pusat (Server) lagi overload. Cek status SERPER_API_KEY dan GROQ_API_KEY di Vercel!", 
             success: false 
         });
     }
