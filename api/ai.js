@@ -1,5 +1,5 @@
 export const config = {
-    maxDuration: 60,
+    maxDuration: 60, 
 };
 
 export default async function handler(req, res) {
@@ -17,62 +17,51 @@ export default async function handler(req, res) {
         const { message, imageBase64 } = req.body;
         let webResults = "";
 
-        // --- 1. SEARCH MODULE (GURU PINTAR) ---
-        const needsSearch = /cari|search|temukan|cek|berita|terbaru|update|siapa|apa itu|harga/i.test(message);
+        // --- 1. SEARCH MODULE DENGAN PROTEKSI ---
+        const needsSearch = /cari|search|temukan|cek|berita|terbaru|update|siapa|apa itu|harga|market/i.test(message);
         
         if (needsSearch && !imageBase64 && searchApiKey) {
             try {
-                const cleanQuery = message.replace(/[^\w\s]/gi, '').trim();
+                // Bersihkan query dari instruksi tambahan agar Serper enteng
+                const query = message.split(' ').slice(0, 10).join(' '); 
+                
                 const searchRes = await fetch("https://google.serper.dev/search", {
                     method: "POST",
                     headers: { "X-API-KEY": searchApiKey, "Content-Type": "application/json" },
-                    body: JSON.stringify({ q: cleanQuery, gl: "id", hl: "id", num: 5 })
+                    body: JSON.stringify({ q: query, gl: "id", hl: "id", num: 4 }),
+                    signal: AbortSignal.timeout(5000) // Maksimal nunggu Google 5 detik
                 });
+
                 if (searchRes.ok) {
                     const searchData = await searchRes.json();
-                    webResults = searchData.organic?.map((s, i) => `${i+1}. [${s.title}]: ${s.snippet}`).join("\n") || "";
+                    webResults = searchData.organic?.map(s => `[${s.title}]: ${s.snippet}`).join("\n") || "";
                 }
-            } catch (e) { console.error("Search Fail"); }
+            } catch (e) {
+                console.log("Search skipped or timeout.");
+                webResults = "Gagal mengambil data real-time, gunakan basis data internal.";
+            }
         }
 
-        // --- 2. SELEKSI MODEL ---
-        // Jika ada gambar wajib pakai 11b-vision atau 90b-vision
+        // --- 2. SELEKSI MODEL (STABLE VERSION) ---
+        // Llama-3.2-11b jauh lebih stabil buat Vercel daripada 90b
         const modelId = imageBase64 ? "llama-3.2-11b-vision-preview" : "llama-3.3-70b-versatile";
 
         const systemPrompt = `Kamu adalah Riksan AI v3.3 (Supreme Core). 
         Identity: Developed by Riksan (CTO SawargiPay). April 2026.
-        
-        LOGIKA GURU PINTAR & VISION:
-        - Jika ada gambar, sapa antusias: "Ouh, ini gambar [Benda], Bos!"
-        - Jelaskan secara SANGAT RINCI dan EDUKATIF (seperti guru pintar).
-        - Identifikasi objek, teks (OCR), atau kodingan di gambar tersebut.
 
-        KEMAMPUAN MULTI-DOMAIN:
-        1. MASTER CODING: Solusi arsitektur & debugging kelas berat.
-        2. MATHEMATICIAN: Selesaikan soal matematika dengan LaTeX.
-        3. ANALYST: Gunakan data Google Search ini: \n${webResults}
-        4. EFISIENSI: Berikan jawaban langsung ke intinya.
+        KEMAMPUAN:
+        - VISION: Jika ada gambar, sapa "Ouh, ini gambar [Benda], Bos!" dan jelaskan detail sebagai Guru Pintar.
+        - MASTER CODING: Solusi arsitektur & debugging.
+        - MATHEMATICIAN: LaTeX mode.
+        - ANALYST: Gunakan data ini: ${webResults}
 
-        GAYA BAHASA: Cerdas, teknis, solutif, panggil 'Bos'.`;
+        GAYA: Cerdas, teknis, panggil 'Bos'. Jawab efisien.`;
 
-        // --- 3. FORMAT PAYLOAD (VERSI PALING STABIL) ---
-        const messages = [
-            { role: "system", content: systemPrompt }
-        ];
-
+        // --- 3. CONSTRUCT MESSAGES ---
+        const content = [];
+        content.push({ type: "text", text: message || "Jelaskan dengan pintar, Bos." });
         if (imageBase64) {
-            messages.push({
-                role: "user",
-                content: [
-                    { type: "text", text: message || "Jelaskan gambar ini dengan pintar, Bos!" },
-                    { type: "image_url", image_url: { url: imageBase64 } }
-                ]
-            });
-        } else {
-            messages.push({
-                role: "user",
-                content: message
-            });
+            content.push({ type: "image_url", image_url: { url: imageBase64 } });
         }
 
         // --- 4. FETCH KE GROQ ---
@@ -84,9 +73,12 @@ export default async function handler(req, res) {
             },
             body: JSON.stringify({
                 model: modelId,
-                messages: messages,
-                temperature: (needsSearch || imageBase64) ? 0.1 : 0.6,
-                max_tokens: 3000
+                messages: [
+                    { role: "system", content: systemPrompt },
+                    { role: "user", content: content }
+                ],
+                temperature: 0.2, // Rendah biar gak halusinasi
+                max_tokens: 2500
             })
         });
 
@@ -95,15 +87,13 @@ export default async function handler(req, res) {
         if (data.choices && data.choices[0]) {
             res.status(200).json({ reply: data.choices[0].message.content, success: true });
         } else {
-            // Ini akan muncul di logs Vercel kalau API Key ditolak
-            console.error("Groq Reject:", data);
             throw new Error(data.error?.message || "Groq Error");
         }
 
     } catch (error) {
-        console.error("Fatal Error:", error);
+        console.error("Backend Error:", error);
         res.status(500).json({ 
-            reply: "Duh Bos, saraf pusat error! " + (error.message.includes("401") ? "API Key Bos salah/expired." : "Server lagi sesak napas."), 
+            reply: "Duh Bos, saraf pusat (Server) overload lagi. Coba kirim ulang pesan Bos tanpa gambar kalau mau search, atau tunggu 10 detik!", 
             success: false 
         });
     }
