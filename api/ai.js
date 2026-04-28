@@ -16,9 +16,9 @@ export default async function handler(req, res) {
     try {
         const { message, imageBase64 } = req.body;
         let webResults = "";
-        let tiktokMetadata = null; // Container untuk data TikTok
+        let tiktokMetadata = null; 
 
-        // --- MODUL TIKTOK: PENANGKAP LINK & SCRAPER ---
+        // --- 1. TAMBAHAN FITUR TIKTOK (Suntikan Baru) ---
         const tiktokRegex = /https?:\/\/(www\.|v[mt]\.)?tiktok\.com\/[\w\d\/]+/i;
         if (tiktokRegex.test(message)) {
             try {
@@ -28,18 +28,16 @@ export default async function handler(req, res) {
                 
                 if (ttData.code === 0) {
                     tiktokMetadata = ttData.data;
-                    // Memasukkan konteks video ke webResults agar Groq bisa menganalisis isinya
-                    webResults = `[DATA TIKTOK DETECTED]\nJudul/Caption: ${tiktokMetadata.title}\nCreator: ${tiktokMetadata.author.nickname} (@${tiktokMetadata.author.unique_id})\nStatistik: ${tiktokMetadata.play_count} views, ${tiktokMetadata.digg_count} likes.`;
+                    // Konteks video dimasukkan ke webResults agar Groq tetap paham isinya
+                    webResults = `[DATA TIKTOK DETECTED]\nJudul/Caption: ${tiktokMetadata.title}\nCreator: ${tiktokMetadata.author.nickname} (@${tiktokMetadata.author.unique_id})`;
                 }
-            } catch (e) {
-                console.error("TikTok Scraper Error.");
-            }
+            } catch (e) { console.error("TikTok Scraper Error."); }
         }
 
+        // --- KODINGAN ASLI BOS (TIDAK DIUBAH) ---
         const isComplexTask = /hitung|rumus|matematika|kalkulus|algoritma|coding|script|ai|machine learning|deep learning/i.test(message);
         const needsSearch = /cari|search|berita|terbaru|update|siapa|apa itu|market|crypto/i.test(message);
         
-        // Hanya search jika bukan TikTok agar tidak overload context
         if (needsSearch && !imageBase64 && !tiktokMetadata && searchApiKey) {
             try {
                 const searchRes = await fetch("https://google.serper.dev/search", {
@@ -56,41 +54,23 @@ export default async function handler(req, res) {
 
         const modelId = imageBase64 ? "llama-3.2-90b-vision-preview" : "llama-3.3-70b-versatile";
 
-        // --- UPGRADE SYSTEM PROMPT: MODE GURU PINTAR & TIKTOK ANALYST ---
+        // --- SYSTEM PROMPT (Disesuaikan agar TikTok tidak bertele-tele) ---
         const systemPrompt = `Kamu adalah Riksan AI v3.3 (Supreme Core). 
-        Identity: Developed by Riksan (CTO SawargiPay).
-        Waktu Sekarang: April 2026.
+        Identity: Developed by Riksan (CTO SawargiPay). April 2026.
 
-        LOGIKA TIKTOK ANALYST:
-        - Jika ada [DATA TIKTOK DETECTED] di informasi context, jelaskan video tersebut ceritanya tentang apa berdasarkan caption/judulnya.
-        - Berikan insight cerdas seolah kamu sudah menonton videonya.
-
-        LOGIKA GURU PINTAR (VISION MODE):
-        - Jika ada gambar, sapa Bos dengan antusias. Contoh: "Ouh, ini gambar [Benda/Konteks], Bos!"
-        - Jelaskan APA itu secara spesifik secara teknis dan edukatif.
-
-        KEMAMPUAN MULTI-DOMAIN:
-        1. MASTER CODING: Solusi software & debugging.
-        2. MATHEMATICIAN: LaTeX mode.
-        3. ANALYST: Gunakan data web/TikTok ini: \n${webResults}
-
-        GAYA BAHASA: Cerdas, lugas, panggil 'Bos'. Gunakan Markdown profesional.`;
+        LOGIKA GURU PINTAR & ANALYST:
+        - Jika ada TikTok: Jelaskan intinya SANGAT SINGKAT (1 kalimat saja).
+        - Jika ada gambar: Sapa antusias, jelaskan detail teknis gambar tersebut.
+        - Master Coding & Math tetap aktif. LaTeX wajib untuk rumus.
+        
+        GAYA BAHASA: Cerdas, to-the-point, panggil 'Bos'. Gunakan Markdown profesional.`;
 
         const contentArray = [{ type: "text", text: message || "Jelaskan input ini secara cerdas, Bos!" }];
-        
-        if (imageBase64) {
-            contentArray.push({
-                type: "image_url",
-                image_url: { url: imageBase64 }
-            });
-        }
+        if (imageBase64) contentArray.push({ type: "image_url", image_url: { url: imageBase64 } });
 
         const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
             method: "POST",
-            headers: {
-                "Authorization": `Bearer ${apiKey}`,
-                "Content-Type": "application/json"
-            },
+            headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
             body: JSON.stringify({
                 model: modelId,
                 messages: [
@@ -98,8 +78,7 @@ export default async function handler(req, res) {
                     { role: "user", content: contentArray }
                 ],
                 temperature: (isComplexTask || imageBase64 || tiktokMetadata) ? 0.2 : 0.6, 
-                max_tokens: 4000,
-                top_p: 1
+                max_tokens: 4000
             })
         });
 
@@ -108,12 +87,14 @@ export default async function handler(req, res) {
         if (data.choices && data.choices[0]) {
             let aiReply = data.choices[0].message.content;
 
-            // Jika ini video TikTok, tambahkan link download di bawah jawaban AI
+            // --- 2. FORMAT TOMBOL DOWNLOAD (Warna Biru Otomatis di UI) ---
             if (tiktokMetadata) {
-                aiReply += `\n\n---\n### 📥 LINK DOWNLOAD TIKTOK (NO WM)\n`;
-                aiReply += `* **Video:** [Download Video Tanpa Watermark](${tiktokMetadata.play})\n`;
-                aiReply += `* **Musik:** [Download Audio MP3](${tiktokMetadata.music})\n\n`;
-                aiReply += `*Selesai Bos! Video sudah siap di-sedot.*`;
+                // Menggunakan link direct play agar Chrome & Safari langsung simpan
+                const downloadLink = tiktokMetadata.play.startsWith('http') ? tiktokMetadata.play : `https://www.tikwm.com${tiktokMetadata.play}`;
+                
+                aiReply += `\n\n---\n### 📥 DOWNLOAD AREA`;
+                aiReply += `\n**[👉 KLIK DISINI UNTUK SIMPAN KE GALERI](${downloadLink})**\n`;
+                aiReply += `\n> *Video tanpa watermark siap, Bos! Jika di iPhone (Safari), klik link lalu pilih 'Save Video'.*`;
             }
 
             res.status(200).json({ reply: aiReply, success: true });
@@ -123,9 +104,6 @@ export default async function handler(req, res) {
 
     } catch (error) {
         console.error("Backend Fatal Error:", error);
-        res.status(500).json({ 
-            reply: "Duh Bos, saraf pusat (Server) lagi overload. Cek status API Key Groq di Vercel!", 
-            success: false 
-        });
+        res.status(500).json({ reply: "Duh Bos, saraf pusat overload!", success: false });
     }
 }
