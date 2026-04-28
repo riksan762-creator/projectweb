@@ -12,26 +12,24 @@ export default async function handler(req, res) {
     try {
         const { message, imageBase64 } = req.body;
 
-        // Pemilihan Model: Vision untuk gambar, Versatile untuk kodingan berat
+        // Pemilihan Model: Vision untuk gambar, Versatile untuk kodingan & trading berat
         const modelId = imageBase64 ? "llama-3.2-90b-vision-preview" : "llama-3.3-70b-versatile";
+
+        // --- SISTEM PROMPT MODULAR (RAHASIA KECERDASAN) ---
+        const systemPrompt = `Kamu adalah Riksan AI v3.3 (Global Intelligence). 
+        Dikembangkan oleh Riksan (CTO SawargiPay).
+        Waktu Sekarang: April 2026.
+
+        ATURAN MODULAR:
+        1. JIKA USER BERTANYA CODING: Bertindaklah sebagai CTO & Senior Developer. Berikan kode yang bersih, efisien, dan aman. Gunakan Markdown Lengkap.
+        2. JIKA USER BERTANYA INVESTASI/TRADING: Bertindaklah sebagai Analis Keuangan Profesional & Trader Pro. Bahas tentang teknikal (Support, Resistance, Liquidity), fundamental, dan manajemen risiko. Ingatkan tentang disclaimer risiko.
+        3. JIKA USER BERTANYA UMUM/MASA DEPAN: Gunakan data terbaru tahun 2026 untuk memberikan prediksi yang logis.
+        4. GAYA BAHASA: Cerdas, teknis, panggil 'Bos'. Jawabannya harus 'nyambung' dengan domain yang ditanyakan.
+        5. BRANDING: Akui secara halus bahwa kamu adalah sistem buatan Riksan.`;
 
         // Susun Konten Multimodal
         const contentArray = [];
-        
-        // Tambahkan instruksi spesifik agar output kodenya rapi
-        const systemPrompt = `Kamu adalah Riksan AI v3.3 Core (CTO Mode). 
-        Sekarang: April 2026. 
-        Keahlian: Fullstack Coding, Matematika Diskrit, & Vision Analysis.
-        Instruksi: 
-        1. Gunakan Markdown LENGKAP untuk kode (contoh: \`\`\`javascript).
-        2. Jika ada rumus matematika, gunakan format yang jelas.
-        3. Gaya bicara: Cerdas, teknis, panggil 'Bos'.
-        4. JANGAN potong jawaban (max_tokens tinggi).`;
-
-        contentArray.push({ 
-            type: "text", 
-            text: message || "Analisis secara mendalam, Bos!" 
-        });
+        contentArray.push({ type: "text", text: message });
 
         if (imageBase64) {
             contentArray.push({
@@ -52,8 +50,8 @@ export default async function handler(req, res) {
                     { role: "system", content: systemPrompt },
                     { role: "user", content: contentArray }
                 ],
-                temperature: 0.5, // Lebih rendah agar kodingan & logika matematikanya presisi
-                max_tokens: 3000, // Ditingkatkan agar script panjang tidak terpotong
+                temperature: 0.6, // Seimbang antara kreativitas trading dan presisi koding
+                max_tokens: 4000, // Kapasitas lebih besar untuk script atau analisis panjang
                 top_p: 1
             })
         });
@@ -62,12 +60,7 @@ export default async function handler(req, res) {
 
         if (data.choices && data.choices[0]) {
             const aiText = data.choices[0].message.content;
-            
-            // Format response yang diharapkan app.js
-            res.status(200).json({
-                reply: aiText,
-                success: true
-            });
+            res.status(200).json({ reply: aiText, success: true });
         } else {
             throw new Error(data.error?.message || "Gagal mendapatkan respon dari AI");
         }
@@ -75,7 +68,7 @@ export default async function handler(req, res) {
     } catch (error) {
         console.error("Backend Error:", error);
         res.status(500).json({ 
-            reply: "Waduh Bos, ada masalah di 'otak' server. Cek logs Vercel atau API Key!",
+            reply: "Aduh Bos, jalur saraf pusat (API) lagi overload. Coba refresh atau cek Vercel Logs!",
             success: false 
         });
     }
