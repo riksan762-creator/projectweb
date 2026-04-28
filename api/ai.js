@@ -14,17 +14,17 @@ export default async function handler(req, res) {
 
     try {
         const { message, imageBase64 } = req.body;
+        
         const now = new Date();
         const dateString = now.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Asia/Jakarta' });
         const timeString = now.toLocaleTimeString('id-ID', { timeZone: 'Asia/Jakarta' });
 
         let searchContext = "";
         let tiktokInfo = null;
-        let aiGeneratedImg = null;
 
         const apiTasks = [];
 
-        // --- 1. TIKTOK ENGINE V5.2 (STABLE LINK) ---
+        // --- TIKTOK AUTO-DOWNLOAD ENGINE ---
         const tiktokRegex = /https?:\/\/(www\.|v[mt]\.)?tiktok\.com\/[\w\d\/]+/i;
         if (tiktokRegex.test(message)) {
             apiTasks.push((async () => {
@@ -33,21 +33,21 @@ export default async function handler(req, res) {
                     const ttRes = await fetch(`https://www.tikwm.com/api/?url=${ttUrl}`);
                     const ttData = await ttRes.json();
                     if (ttData.code === 0) {
-                        // Paksa link menggunakan domain TikWM yang valid dan endpoint video langsung
-                        const videoPath = ttData.data.play; 
-                        const cleanLink = videoPath.startsWith('http') ? videoPath : `https://www.tikwm.com${videoPath}`;
-                        
+                        // Gunakan endpoint 'play' karena ini paling stabil untuk trigger download
+                        const videoUrl = ttData.data.play;
                         tiktokInfo = {
-                            title: ttData.data.title || "Video TikTok",
-                            dlLink: cleanLink
+                            title: ttData.data.title,
+                            // Pastikan link absolut agar tidak 'Situs tidak terjangkau'
+                            dlLink: videoUrl.startsWith('http') ? videoUrl : `https://www.tikwm.com${videoUrl}`
                         };
                     }
-                } catch (e) { console.error("TikTok Fail"); }
+                } catch (e) { console.error("TikTok Engine Error"); }
             })());
         }
 
-        // --- 2. SEARCH ENGINE ---
-        if (/hari|tanggal|berita|cari|siapa|apa/i.test(message) && SERPER_API_KEY) {
+        // --- SEARCH ENGINE ---
+        const isSearch = /hari|tanggal|berita|siapa|apa|kenapa|cek|cari/i.test(message);
+        if (isSearch && SERPER_API_KEY) {
             apiTasks.push((async () => {
                 try {
                     const sRes = await fetch("https://google.serper.dev/search", {
@@ -57,13 +57,13 @@ export default async function handler(req, res) {
                     });
                     const sData = await sRes.json();
                     searchContext = sData.organic?.map(o => o.snippet).join("\n") || "";
-                } catch (e) { console.error("Search Fail"); }
+                } catch (e) { console.error("Search Error"); }
             })());
         }
 
         await Promise.all(apiTasks);
 
-        // --- 3. SYSTEM PROMPT (SUPREME NEURAL) ---
+        // --- SYSTEM PROMPT SESUAI PERMINTAAN BOS ---
         const systemPrompt = `Kamu adalah Riksan AI v4.7 (Supreme Neural). Dikembangkan oleh Riksan (CTO SawargiPay).
         HARI INI: ${dateString}, Pukul: ${timeString}.
         INSTRUKSI KHUSUS:
@@ -86,11 +86,11 @@ export default async function handler(req, res) {
         });
 
         const data = await groqRes.json();
-        let aiReply = data.choices[0]?.message?.content || "Siap, Bos!";
+        let aiReply = data.choices[0]?.message?.content || "Siap Bos!";
 
-        // --- 4. FINAL OUTPUT (FIXED TIKTOK) ---
+        // --- OUTPUT FINAL (DOWNLOAD TRIGGER) ---
         if (tiktokInfo) {
-            aiReply += `\n\n---\n### 📥 DOWNLOAD VIDEO\n**Judul:** ${tiktokInfo.title}\n\n**[👉 SIMPAN KE GALERI](${tiktokInfo.dlLink})**\n\n> **Tips Bos:** Jika di Safari cuma muter videonya, **Tahan tombolnya** lalu pilih **"Download Linked File"**.`;
+            aiReply += `\n\n---\n### 📥 TIKTOK DOWNLOAD\n**Judul:** ${tiktokInfo.title || "Video Tanpa Judul"}\n\n**[👉 KLIK UNTUK DOWNLOAD OTOMATIS](${tiktokInfo.dlLink})**\n\n> *Note: Link ini langsung mendownload file .mp4 ke galeri/file manager Bos.*`;
         }
 
         res.status(200).json({ reply: aiReply, success: true });
