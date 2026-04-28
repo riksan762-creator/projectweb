@@ -5,6 +5,7 @@ export const config = {
 export default async function handler(req, res) {
     const apiKey = process.env.GROQ_API_KEY;
     const searchApiKey = process.env.SERPER_API_KEY;
+    const stabilityKey = process.env.STABILITY_API_KEY;
 
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -16,30 +17,74 @@ export default async function handler(req, res) {
     try {
         const { message, imageBase64 } = req.body;
         let webResults = "";
-        let tiktokMetadata = null; 
+        let tiktokMetadata = null;
+        let aiGeneratedImg = null;
 
-        // --- 1. MODUL TIKTOK: PENANGKAP LINK & SCRAPER ---
+        // --- 1. MODUL TIKTOK (MASTER MODE) ---
         const tiktokRegex = /https?:\/\/(www\.|v[mt]\.)?tiktok\.com\/[\w\d\/]+/i;
         if (tiktokRegex.test(message)) {
             try {
                 const tiktokUrl = message.match(tiktokRegex)[0];
                 const ttRes = await fetch(`https://www.tikwm.com/api/?url=${tiktokUrl}`);
                 const ttData = await ttRes.json();
-                
                 if (ttData.code === 0) {
                     tiktokMetadata = ttData.data;
-                    // Konteks video agar AI tetap bisa menganalisis isinya
-                    webResults = `[DATA TIKTOK DETECTED]\nJudul/Caption: ${tiktokMetadata.title}\nCreator: ${tiktokMetadata.author.nickname} (@${tiktokMetadata.author.unique_id})`;
+                    webResults = `[DATA TIKTOK DETECTED]\nJudul: ${tiktokMetadata.title}\nCreator: ${tiktokMetadata.author.nickname}`;
                 }
-            } catch (e) {
-                console.error("TikTok Scraper Error.");
-            }
+            } catch (e) { console.error("TikTok Scraper Error."); }
         }
 
-        // --- 2. KEMAMPUAN MULTI-DOMAIN (MASTER CODING, MATH, SEARCH) ---
-        const isComplexTask = /hitung|rumus|matematika|kalkulus|algoritma|coding|script|ai|machine learning|deep learning/i.test(message);
-        const needsSearch = /cari|search|berita|terbaru|update|siapa|apa itu|market|crypto/i.test(message);
-        
+        // --- 2. MODUL STABILITY AI (GENERATE & REMOVE BG) ---
+        // Logika: Jika ada kata 'hapus bg' atau 'generate/buatkan'
+        const isStabilityTask = /buatkan|gambar|generate|hapus bg|remove bg|edit|lukis/i.test(message);
+        if (isStabilityTask && stabilityKey) {
+            try {
+                const engineId = 'stable-diffusion-v1-6';
+                let endpoint = "text-to-image";
+                const body = {
+                    cfg_scale: 7,
+                    height: 512,
+                    width: 512,
+                    steps: 30,
+                    samples: 1,
+                    text_prompts: []
+                };
+
+                // Jika user ingin hapus background lewat Stability (Image-to-Image)
+                if (/hapus bg|remove bg|bersihkan/i.test(message) && imageBase64) {
+                    endpoint = "image-to-image";
+                    body.text_prompts.push({ text: "subject with white background, high quality, clean cut", weight: 1 });
+                    body.init_image = imageBase64.split(',')[1] || imageBase64;
+                    body.image_strength = 0.35; 
+                } else {
+                    // Mode Generate atau Edit biasa
+                    body.text_prompts.push({ text: message, weight: 1 });
+                    if (imageBase64) {
+                        endpoint = "image-to-image";
+                        body.init_image = imageBase64.split(',')[1] || imageBase64;
+                        body.image_strength = 0.4;
+                    }
+                }
+
+                const sRes = await fetch(`https://api.stability.ai/v1/generation/${engineId}/${endpoint}`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        Accept: "application/json",
+                        Authorization: `Bearer ${stabilityKey}`,
+                    },
+                    body: JSON.stringify(body),
+                });
+
+                if (sRes.ok) {
+                    const sData = await sRes.json();
+                    aiGeneratedImg = sData.artifacts[0].base64;
+                }
+            } catch (e) { console.error("Stability AI Error."); }
+        }
+
+        // --- 3. KEMAMPUAN SEARCH & CODING (TETAP ADA) ---
+        const needsSearch = /cari|search|berita|update|market|crypto/i.test(message);
         if (needsSearch && !imageBase64 && !tiktokMetadata && searchApiKey) {
             try {
                 const searchRes = await fetch("https://google.serper.dev/search", {
@@ -54,67 +99,44 @@ export default async function handler(req, res) {
             } catch (e) { console.error("Search module error."); }
         }
 
+        // --- 4. GROQ AI ENGINE (SINKRONISASI) ---
         const modelId = imageBase64 ? "llama-3.2-90b-vision-preview" : "llama-3.3-70b-versatile";
+        const systemPrompt = `Kamu adalah Riksan AI v3.8 (Supreme Core). CTO: Riksan (SawargiPay). 
+        Identity: dikembangkan oleh Riksan. April 2026.
+        Keahlian: Master Coding, Mathematician (LaTeX), dan AI Generative Specialist.
+        Gaya Bahasa: Cerdas, panggil 'Bos', Markdown profesional.`;
 
-        // --- 3. UPGRADE SYSTEM PROMPT (SUPREME CORE REMAINS) ---
-        const systemPrompt = `Kamu adalah Riksan AI v3.3 (Supreme Core). 
-        Identity: Developed by Riksan (CTO SawargiPay). Waktu Sekarang: April 2026.
-
-        LOGIKA GURU PINTAR (VISION MODE):
-        - Jika ada gambar, sapa Bos dengan antusias. Jelaskan teknis, fungsi, dan detail latar belakang secara rinci.
-
-        LOGIKA TIKTOK ANALYST:
-        - Jika ada TikTok: Jelaskan isi video secara SINGKAT (1-2 kalimat). Fokus ke download.
-
-        KEMAMPUAN MASTER:
-        1. MASTER CODING: Solusi software & debugging.
-        2. MATHEMATICIAN: Selesaikan soal dengan LaTeX ($inline$ atau $$display$$).
-        3. AI SPECIALIST: Konsep Neural Networks & tren 2026.
-        4. ANALYST: Gunakan data web/TikTok: \n${webResults}
-
-        GAYA BAHASA: Cerdas, lugas, panggil 'Bos'. Gunakan Markdown profesional.`;
-
-        const contentArray = [{ type: "text", text: message || "Jelaskan secara cerdas dan ringkas, Bos!" }];
-        if (imageBase64) contentArray.push({ type: "image_url", image_url: { url: imageBase64 } });
-
-        const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
             method: "POST",
             headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
             body: JSON.stringify({
                 model: modelId,
                 messages: [
                     { role: "system", content: systemPrompt },
-                    { role: "user", content: contentArray }
+                    { role: "user", content: [{ type: "text", text: message || "Analisis secara teknis, Bos!" }, ...(imageBase64 ? [{ type: "image_url", image_url: { url: imageBase64 } }] : [])] }
                 ],
-                temperature: (isComplexTask || imageBase64 || tiktokMetadata) ? 0.2 : 0.6, 
-                max_tokens: 4000
+                temperature: 0.2
             })
         });
 
-        const data = await response.json();
-
+        const data = await groqRes.json();
         if (data.choices && data.choices[0]) {
             let aiReply = data.choices[0].message.content;
 
-            // --- 4. FORMAT DOWNLOAD AREA (FORCE DOWNLOAD MODE) ---
+            // --- APPENDING MULTI-OUTPUTS ---
             if (tiktokMetadata) {
-                // Link direct media .mp4 untuk memicu Save-As di browser
-                const directVideoLink = `https://www.tikwm.com/video/media/play/${tiktokMetadata.id}.mp4`;
-                
-                aiReply += `\n\n---\n### 📥 DOWNLOAD AREA (SIMPAN KE GALERI)\n`;
-                aiReply += `**[👉 KLIK DISINI UNTUK DOWNLOAD VIDEO](${directVideoLink})**\n\n`;
-                aiReply += `> **Catatan CTO:**\n`;
-                aiReply += `> - **Chrome/Android:** Link akan langsung mendownload video ke folder download/galeri.\n`;
-                aiReply += `> - **Safari/iPhone:** Klik link, lalu tekan lama pada video dan pilih **'Save Video'** atau gunakan menu **Share > Save Video**.`;
+                const dl = `https://www.tikwm.com/video/media/play/${tiktokMetadata.id}.mp4`;
+                aiReply += `\n\n---\n### 📥 TIKTOK DOWNLOAD\n**[👉 KLIK DISINI UNTUK SIMPAN](${dl})**`;
+            }
+
+            if (aiGeneratedImg) {
+                aiReply += `\n\n---\n### 🎨 STABILITY AI RESULT\n**[👉 DOWNLOAD HASIL GAMBAR](data:image/png;base64,${aiGeneratedImg})**\n`;
+                aiReply += `\n> *Hasil pemrosesan gambar Stability AI sudah siap, Bos!*`;
             }
 
             res.status(200).json({ reply: aiReply, success: true });
-        } else {
-            throw new Error(data.error?.message || "API error.");
         }
-
     } catch (error) {
-        console.error("Backend Fatal Error:", error);
         res.status(500).json({ reply: "Duh Bos, saraf pusat overload!", success: false });
     }
 }
