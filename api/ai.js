@@ -14,11 +14,8 @@ export default async function handler(req, res) {
 
     try {
         const { message, imageBase64 } = req.body;
-        
-        // --- 1. REAL-TIME CLOCK (WIB) ---
         const now = new Date();
-        const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Asia/Jakarta' };
-        const dateString = now.toLocaleDateString('id-ID', options);
+        const dateString = now.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Asia/Jakarta' });
         const timeString = now.toLocaleTimeString('id-ID', { timeZone: 'Asia/Jakarta' });
 
         let searchContext = "";
@@ -27,7 +24,7 @@ export default async function handler(req, res) {
 
         const apiTasks = [];
 
-        // --- 2. TIKTOK & SEARCH DETECTION ---
+        // --- 1. TIKTOK ENGINE V5.2 (STABLE LINK) ---
         const tiktokRegex = /https?:\/\/(www\.|v[mt]\.)?tiktok\.com\/[\w\d\/]+/i;
         if (tiktokRegex.test(message)) {
             apiTasks.push((async () => {
@@ -36,20 +33,27 @@ export default async function handler(req, res) {
                     const ttRes = await fetch(`https://www.tikwm.com/api/?url=${ttUrl}`);
                     const ttData = await ttRes.json();
                     if (ttData.code === 0) {
-                        tiktokInfo = { title: ttData.data.title, dlLink: ttData.data.hdplay || ttData.data.play };
+                        // Paksa link menggunakan domain TikWM yang valid dan endpoint video langsung
+                        const videoPath = ttData.data.play; 
+                        const cleanLink = videoPath.startsWith('http') ? videoPath : `https://www.tikwm.com${videoPath}`;
+                        
+                        tiktokInfo = {
+                            title: ttData.data.title || "Video TikTok",
+                            dlLink: cleanLink
+                        };
                     }
                 } catch (e) { console.error("TikTok Fail"); }
             })());
         }
 
-        const isSearch = /hari|tanggal|berita|info|cek|cari|search|siapa|apa|kenapa|market|harga/i.test(message);
-        if (isSearch && SERPER_API_KEY) {
+        // --- 2. SEARCH ENGINE ---
+        if (/hari|tanggal|berita|cari|siapa|apa/i.test(message) && SERPER_API_KEY) {
             apiTasks.push((async () => {
                 try {
                     const sRes = await fetch("https://google.serper.dev/search", {
                         method: "POST",
                         headers: { "X-API-KEY": SERPER_API_KEY, "Content-Type": "application/json" },
-                        body: JSON.stringify({ q: `${message} ${dateString}`, gl: "id", hl: "id", num: 5 })
+                        body: JSON.stringify({ q: `${message} ${dateString}`, gl: "id", hl: "id", num: 3 })
                     });
                     const sData = await sRes.json();
                     searchContext = sData.organic?.map(o => o.snippet).join("\n") || "";
@@ -57,38 +61,9 @@ export default async function handler(req, res) {
             })());
         }
 
-        // --- 3. STABILITY AI ---
-        const isVisual = /buat|gambar|foto|desain|generate/i.test(message);
-        if (isVisual && STABILITY_API_KEY) {
-            apiTasks.push((async () => {
-                try {
-                    const endpoint = imageBase64 ? "image-to-image" : "text-to-image";
-                    const body = {
-                        cfg_scale: 7, height: 512, width: 512, steps: 30, samples: 1,
-                        text_prompts: [{ text: `${message}, masterpiece, high quality`, weight: 1 }]
-                    };
-                    if (imageBase64) {
-                        body.init_image = imageBase64.split(',')[1] || imageBase64;
-                        body.image_strength = 0.4;
-                    }
-                    const sRes = await fetch(`https://api.stability.ai/v1/generation/stable-diffusion-v1-6/${endpoint}`, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json", Accept: "application/json", Authorization: `Bearer ${STABILITY_API_KEY}` },
-                        body: JSON.stringify(body)
-                    });
-                    if (sRes.ok) {
-                        const sData = await sRes.json();
-                        aiGeneratedImg = sData.artifacts[0].base64;
-                    }
-                } catch (e) { console.error("Stability Fail"); }
-            })());
-        }
-
         await Promise.all(apiTasks);
 
-        // --- 4. GROQ SUPREME BRAIN (DENGAN SYSTEM PROMPT BOS) ---
-        const modelId = imageBase64 ? "llama-3.2-90b-vision-preview" : "llama-3.3-70b-versatile";
-        
+        // --- 3. SYSTEM PROMPT (SUPREME NEURAL) ---
         const systemPrompt = `Kamu adalah Riksan AI v4.7 (Supreme Neural). Dikembangkan oleh Riksan (CTO SawargiPay).
         HARI INI: ${dateString}, Pukul: ${timeString}.
         INSTRUKSI KHUSUS:
@@ -104,24 +79,18 @@ export default async function handler(req, res) {
             method: "POST",
             headers: { "Authorization": `Bearer ${GROQ_API_KEY}`, "Content-Type": "application/json" },
             body: JSON.stringify({
-                model: modelId,
+                model: "llama-3.3-70b-versatile",
                 messages: [{ role: "system", content: systemPrompt }, { role: "user", content: message }],
                 temperature: 0.2
             })
         });
 
         const data = await groqRes.json();
-        let aiReply = data.choices[0]?.message?.content || "Duh Bos, otak saya nge-lag!";
+        let aiReply = data.choices[0]?.message?.content || "Siap, Bos!";
 
-        // --- 5. FINAL PACKAGING ---
+        // --- 4. FINAL OUTPUT (FIXED TIKTOK) ---
         if (tiktokInfo) {
-            const finalUrl = `https://www.tikwm.com${tiktokInfo.dlLink}`;
-            aiReply += `\n\n---\n**📥 TIKTOK DOWNLOADER**\n**Judul:** ${tiktokInfo.title || "Video TikTok"}\n\n**[👉 KLIK UNTUK SIMPAN KE GALERI](${finalUrl})**`;
-        }
-
-        if (aiGeneratedImg) {
-            const base64Url = `data:image/png;base64,${aiGeneratedImg}`;
-            aiReply += `\n\n---\n**🎨 HASIL KARYA AI**\n![Result](${base64Url})\n\n**[👉 DOWNLOAD GAMBAR](${base64Url})**`;
+            aiReply += `\n\n---\n### 📥 DOWNLOAD VIDEO\n**Judul:** ${tiktokInfo.title}\n\n**[👉 SIMPAN KE GALERI](${tiktokInfo.dlLink})**\n\n> **Tips Bos:** Jika di Safari cuma muter videonya, **Tahan tombolnya** lalu pilih **"Download Linked File"**.`;
         }
 
         res.status(200).json({ reply: aiReply, success: true });
