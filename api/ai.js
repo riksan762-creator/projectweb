@@ -18,7 +18,7 @@ export default async function handler(req, res) {
         let webResults = "";
         let tiktokMetadata = null; 
 
-        // --- 1. TAMBAHAN FITUR TIKTOK (Suntikan Baru) ---
+        // --- 1. MODUL TIKTOK: PENANGKAP LINK & SCRAPER ---
         const tiktokRegex = /https?:\/\/(www\.|v[mt]\.)?tiktok\.com\/[\w\d\/]+/i;
         if (tiktokRegex.test(message)) {
             try {
@@ -28,13 +28,15 @@ export default async function handler(req, res) {
                 
                 if (ttData.code === 0) {
                     tiktokMetadata = ttData.data;
-                    // Konteks video dimasukkan ke webResults agar Groq tetap paham isinya
+                    // Konteks video agar AI tetap bisa menganalisis isinya
                     webResults = `[DATA TIKTOK DETECTED]\nJudul/Caption: ${tiktokMetadata.title}\nCreator: ${tiktokMetadata.author.nickname} (@${tiktokMetadata.author.unique_id})`;
                 }
-            } catch (e) { console.error("TikTok Scraper Error."); }
+            } catch (e) {
+                console.error("TikTok Scraper Error.");
+            }
         }
 
-        // --- KODINGAN ASLI BOS (TIDAK DIUBAH) ---
+        // --- 2. KEMAMPUAN MULTI-DOMAIN (MASTER CODING, MATH, SEARCH) ---
         const isComplexTask = /hitung|rumus|matematika|kalkulus|algoritma|coding|script|ai|machine learning|deep learning/i.test(message);
         const needsSearch = /cari|search|berita|terbaru|update|siapa|apa itu|market|crypto/i.test(message);
         
@@ -54,18 +56,25 @@ export default async function handler(req, res) {
 
         const modelId = imageBase64 ? "llama-3.2-90b-vision-preview" : "llama-3.3-70b-versatile";
 
-        // --- SYSTEM PROMPT (Disesuaikan agar TikTok tidak bertele-tele) ---
+        // --- 3. UPGRADE SYSTEM PROMPT (SUPREME CORE REMAINS) ---
         const systemPrompt = `Kamu adalah Riksan AI v3.3 (Supreme Core). 
-        Identity: Developed by Riksan (CTO SawargiPay). April 2026.
+        Identity: Developed by Riksan (CTO SawargiPay). Waktu Sekarang: April 2026.
 
-        LOGIKA GURU PINTAR & ANALYST:
-        - Jika ada TikTok: Jelaskan intinya SANGAT SINGKAT (1 kalimat saja).
-        - Jika ada gambar: Sapa antusias, jelaskan detail teknis gambar tersebut.
-        - Master Coding & Math tetap aktif. LaTeX wajib untuk rumus.
-        
-        GAYA BAHASA: Cerdas, to-the-point, panggil 'Bos'. Gunakan Markdown profesional.`;
+        LOGIKA GURU PINTAR (VISION MODE):
+        - Jika ada gambar, sapa Bos dengan antusias. Jelaskan teknis, fungsi, dan detail latar belakang secara rinci.
 
-        const contentArray = [{ type: "text", text: message || "Jelaskan input ini secara cerdas, Bos!" }];
+        LOGIKA TIKTOK ANALYST:
+        - Jika ada TikTok: Jelaskan isi video secara SINGKAT (1-2 kalimat). Fokus ke download.
+
+        KEMAMPUAN MASTER:
+        1. MASTER CODING: Solusi software & debugging.
+        2. MATHEMATICIAN: Selesaikan soal dengan LaTeX ($inline$ atau $$display$$).
+        3. AI SPECIALIST: Konsep Neural Networks & tren 2026.
+        4. ANALYST: Gunakan data web/TikTok: \n${webResults}
+
+        GAYA BAHASA: Cerdas, lugas, panggil 'Bos'. Gunakan Markdown profesional.`;
+
+        const contentArray = [{ type: "text", text: message || "Jelaskan secara cerdas dan ringkas, Bos!" }];
         if (imageBase64) contentArray.push({ type: "image_url", image_url: { url: imageBase64 } });
 
         const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -87,14 +96,16 @@ export default async function handler(req, res) {
         if (data.choices && data.choices[0]) {
             let aiReply = data.choices[0].message.content;
 
-            // --- 2. FORMAT TOMBOL DOWNLOAD (Warna Biru Otomatis di UI) ---
+            // --- 4. FORMAT DOWNLOAD AREA (FORCE DOWNLOAD MODE) ---
             if (tiktokMetadata) {
-                // Menggunakan link direct play agar Chrome & Safari langsung simpan
-                const downloadLink = tiktokMetadata.play.startsWith('http') ? tiktokMetadata.play : `https://www.tikwm.com${tiktokMetadata.play}`;
+                // Link direct media .mp4 untuk memicu Save-As di browser
+                const directVideoLink = `https://www.tikwm.com/video/media/play/${tiktokMetadata.id}.mp4`;
                 
-                aiReply += `\n\n---\n### 📥 DOWNLOAD AREA`;
-                aiReply += `\n**[👉 KLIK DISINI UNTUK SIMPAN KE GALERI](${downloadLink})**\n`;
-                aiReply += `\n> *Video tanpa watermark siap, Bos! Jika di iPhone (Safari), klik link lalu pilih 'Save Video'.*`;
+                aiReply += `\n\n---\n### 📥 DOWNLOAD AREA (SIMPAN KE GALERI)\n`;
+                aiReply += `**[👉 KLIK DISINI UNTUK DOWNLOAD VIDEO](${directVideoLink})**\n\n`;
+                aiReply += `> **Catatan CTO:**\n`;
+                aiReply += `> - **Chrome/Android:** Link akan langsung mendownload video ke folder download/galeri.\n`;
+                aiReply += `> - **Safari/iPhone:** Klik link, lalu tekan lama pada video dan pilih **'Save Video'** atau gunakan menu **Share > Save Video**.`;
             }
 
             res.status(200).json({ reply: aiReply, success: true });
