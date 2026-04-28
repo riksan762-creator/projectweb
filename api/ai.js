@@ -5,9 +5,8 @@ export const config = {
 export default async function handler(req, res) {
     const apiKey = process.env.GROQ_API_KEY;
     const searchApiKey = process.env.SERPER_API_KEY;
-    const stabilityKey = process.env.STABILITY_API_KEY;
+    const removeBgKey = process.env.REMOVE_BG_API_KEY; // Tambahkan key ini di Environment Variables Vercel
 
-    // Standard Headers
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -17,12 +16,35 @@ export default async function handler(req, res) {
 
     try {
         const { message, imageBase64 } = req.body;
-        let contextData = "";
-        let tiktokInfo = null;
-        let aiGeneratedImg = null;
-        let visualAnalysis = "";
+        let webResults = "";
+        let tiktokMetadata = null;
+        let processedImage = null; // Container hasil remove background
 
-        // --- 1. MODUL TIKTOK MASTER (DIRECT DOWNLOAD LOGIC) ---
+        // --- 1. MODUL REMOVE BACKGROUND (FITUR BARU) ---
+        const isRemoveBgTask = /hapus bg|bersihkan|remove bg|background/i.test(message);
+        if (isRemoveBgTask && imageBase64 && removeBgKey) {
+            try {
+                // Membersihkan prefix base64 jika ada
+                const pureBase64 = imageBase64.split(',')[1] || imageBase64;
+                
+                const rbRes = await fetch("https://api.remove.bg/v1.0/removebg", {
+                    method: "POST",
+                    headers: { "X-Api-Key": removeBgKey, "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        image_file_b64: pureBase64,
+                        size: "auto",
+                        format: "png"
+                    })
+                });
+
+                if (rbRes.ok) {
+                    const buffer = await rbRes.arrayBuffer();
+                    processedImage = Buffer.from(buffer).toString('base64');
+                }
+            } catch (e) { console.error("Remove.bg Error."); }
+        }
+
+        // --- 2. MODUL TIKTOK (TETAP ADA) ---
         const tiktokRegex = /https?:\/\/(www\.|v[mt]\.)?tiktok\.com\/[\w\d\/]+/i;
         if (tiktokRegex.test(message)) {
             try {
@@ -30,117 +52,76 @@ export default async function handler(req, res) {
                 const ttRes = await fetch(`https://www.tikwm.com/api/?url=${tiktokUrl}`);
                 const ttData = await ttRes.json();
                 if (ttData.code === 0) {
-                    tiktokInfo = ttData.data;
-                    // Berikan info ke AI tentang video ini
-                    contextData += `\n[TIKTOK]: ${tiktokInfo.title} by ${tiktokInfo.author.nickname}`;
+                    tiktokMetadata = ttData.data;
+                    webResults = `[TIKTOK]: ${tiktokMetadata.title} by ${tiktokMetadata.author.nickname}`;
                 }
-            } catch (e) { console.error("TikTok Error"); }
+            } catch (e) { console.error("TikTok Scraper Error."); }
         }
 
-        // --- 2. MODUL VISION (ANALISIS GAMBAR) ---
-        if (imageBase64) {
+        // --- 3. MODUL SEARCH & COMPLEX TASK (TETAP ADA) ---
+        const isComplexTask = /hitung|rumus|matematika|kalkulus|algoritma|coding|script/i.test(message);
+        const needsSearch = /cari|search|berita|terbaru|update/i.test(message);
+        
+        if (needsSearch && !imageBase64 && !tiktokMetadata && searchApiKey) {
             try {
-                const visionRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-                    method: "POST",
-                    headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        model: "llama-3.2-90b-vision-preview",
-                        messages: [{
-                            role: "user",
-                            content: [
-                                { type: "text", text: "Identifikasi gambar ini secara teknis dan estetis untuk modifikasi." },
-                                { type: "image_url", image_url: { url: imageBase64 } }
-                            ]
-                        }]
-                    })
-                });
-                const vData = await visionRes.json();
-                visualAnalysis = vData.choices[0].message.content;
-            } catch (e) { console.error("Vision Error"); }
-        }
-
-        // --- 3. MODUL STABILITY AI (SMART GENERATOR) ---
-        const isVisualReq = /buat|gambar|foto|design|edit|visual|logo|render/i.test(message);
-        if (isVisualReq && stabilityKey) {
-            try {
-                const engineId = 'stable-diffusion-v1-6';
-                const endpoint = imageBase64 ? "image-to-image" : "text-to-image";
-                const body = {
-                    cfg_scale: 7,
-                    height: 512,
-                    width: 512,
-                    steps: 30,
-                    text_prompts: [{ text: `${message}, ${visualAnalysis}, high resolution, cinematic`, weight: 1 }],
-                };
-                if (imageBase64) {
-                    body.init_image = imageBase64.split(',')[1] || imageBase64;
-                    body.image_strength = 0.45;
-                }
-                const sRes = await fetch(`https://api.stability.ai/v1/generation/${engineId}/${endpoint}`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json", Accept: "application/json", Authorization: `Bearer ${stabilityKey}` },
-                    body: JSON.stringify(body),
-                });
-                if (sRes.ok) {
-                    const sData = await sRes.json();
-                    aiGeneratedImg = sData.artifacts[0].base64;
-                }
-            } catch (e) { console.error("Stability Error"); }
-        }
-
-        // --- 4. MODUL FINANCE & SEARCH (GLOBAL MARKET DATA) ---
-        const isFinance = /saham|crypto|investasi|market|ekonomi|forex|harga/i.test(message);
-        if ((isFinance || /cari|info/i.test(message)) && searchApiKey) {
-            try {
-                const sRes = await fetch("https://google.serper.dev/search", {
+                const searchRes = await fetch("https://google.serper.dev/search", {
                     method: "POST",
                     headers: { "X-API-KEY": searchApiKey, "Content-Type": "application/json" },
                     body: JSON.stringify({ q: message, gl: "id", hl: "id", num: 4 })
                 });
-                const sData = await sRes.json();
-                contextData += "\n[MARKET DATA]: " + sData.organic?.map(s => s.snippet).join(" ");
-            } catch (e) { console.error("Search Error"); }
+                if (searchRes.ok) {
+                    const searchData = await searchRes.json();
+                    webResults = searchData.organic?.map(s => `[${s.title}]: ${s.snippet}`).join("\n") || "";
+                }
+            } catch (e) { console.error("Search module error."); }
         }
 
-        // --- 5. GROQ AI SUPREME CORE ---
-        const systemPrompt = `Kamu adalah Riksan AI v3.9. CTO: Riksan.
-        Identity: Supreme AI Master Coding, Global Finance Expert, & Creative Specialist.
-        Keahlian Khusus: 
-        1. Financial Advisor: Analisis pasar modal, crypto, forex, dan strategi investasi global.
-        2. Master Coding: Menulis kode bersih, efisien, dan debugging.
-        3. Visual Analyst: Mengerti seni dan modifikasi gambar.
-        Gaya: Cerdas, panggil 'Bos', profesional, gunakan Markdown & LaTeX.
-        Data Konteks: ${contextData} ${visualAnalysis}`;
+        const modelId = imageBase64 ? "llama-3.2-90b-vision-preview" : "llama-3.3-70b-versatile";
 
-        const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        // --- 4. SYSTEM PROMPT (SUPREME CORE) ---
+        const systemPrompt = `Kamu adalah Riksan AI v3.5 (Supreme Core). Dev: Riksan (CTO SawargiPay).
+        Identity: April 2026.
+        Logika Guru Pintar & Master Coding tetap aktif. 
+        Jika gambar diproses (Remove BG), sapa Bos dan beritahu hasilnya sudah siap.`;
+
+        const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
             method: "POST",
             headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
             body: JSON.stringify({
-                model: imageBase64 ? "llama-3.2-90b-vision-preview" : "llama-3.3-70b-versatile",
-                messages: [{ role: "system", content: systemPrompt }, { role: "user", content: message }],
-                temperature: 0.2
+                model: modelId,
+                messages: [
+                    { role: "system", content: systemPrompt },
+                    { role: "user", content: [{ type: "text", text: message || "Analisis ini, Bos." }, ...(imageBase64 ? [{ type: "image_url", image_url: { url: imageBase64 } }] : [])] }
+                ],
+                temperature: 0.2,
+                max_tokens: 3000
             })
         });
 
-        const data = await groqRes.json();
-        let aiReply = data.choices[0].message.content;
+        const data = await response.json();
 
-        // --- FINAL PACKAGING (LINK & MEDIA) ---
-        
-        // 📥 TikTok Section
-        if (tiktokInfo) {
-            const videoUrl = tiktokInfo.play; // Direct Link for Download
-            aiReply += `\n\n---\n### 📥 TIKTOK DOWNLOAD CENTER\n**Video berhasil ditemukan, Bos!**\n- **Judul**: ${tiktokInfo.title}\n- **Creator**: @${tiktokInfo.author.nickname}\n\n**[👉 KLIK DISINI UNTUK DOWNLOAD KE GALERI](${videoUrl})**\n> *Gunakan link di atas pada Safari/Chrome, lalu pilih "Simpan Video".*`;
+        if (data.choices && data.choices[0]) {
+            let aiReply = data.choices[0].message.content;
+
+            // Output khusus TikTok (Force Download)
+            if (tiktokMetadata) {
+                const dl = `https://www.tikwm.com/video/media/play/${tiktokMetadata.id}.mp4`;
+                aiReply += `\n\n### 📥 DOWNLOAD TIKTOK\n**[👉 SIMPAN KE GALERI](${dl})**`;
+            }
+
+            // Output khusus Remove.bg (Tampilkan Tombol Download Hasil)
+            if (processedImage) {
+                aiReply += `\n\n### 🖼️ HASIL PENGHAPUSAN BG\n`;
+                aiReply += `**[👉 DOWNLOAD HASIL TRANSPARAN](data:image/png;base64,${processedImage})**\n`;
+                aiReply += `\n> Background sudah bersih, Bos! Tinggal pakai buat jualan di SawargiPay.`;
+            }
+
+            res.status(200).json({ reply: aiReply, success: true });
+        } else {
+            throw new Error("API error.");
         }
-
-        // 🎨 Stability AI Section
-        if (aiGeneratedImg) {
-            aiReply += `\n\n---\n### 🎨 HASIL VISUAL AI\n![Result](data:image/png;base64,${aiGeneratedImg})\n\n**[👉 DOWNLOAD GAMBAR (PNG)](data:image/png;base64,${aiGeneratedImg})**`;
-        }
-
-        res.status(200).json({ reply: aiReply, success: true });
 
     } catch (error) {
-        res.status(500).json({ reply: "Sistem mengalami anomali, Bos!", success: false });
+        res.status(500).json({ reply: "Duh Bos, server lagi pusing!", success: false });
     }
 }
