@@ -1,5 +1,5 @@
 export const config = {
-    maxDuration: 60, 
+    maxDuration: 60,
 };
 
 export default async function handler(req, res) {
@@ -17,14 +17,12 @@ export default async function handler(req, res) {
         const { message, imageBase64 } = req.body;
         let webResults = "";
 
-        // --- BRAIN DISPATCHER: SEARCH LOGIC ---
+        // --- 1. SEARCH MODULE (GURU PINTAR MODE) ---
         const needsSearch = /cari|search|temukan|cek|berita|terbaru|update|siapa|apa itu|harga|market/i.test(message);
         
         if (needsSearch && !imageBase64 && searchApiKey) {
             try {
-                // Membersihkan query dari karakter aneh agar Serper tidak error 500
                 const cleanQuery = message.replace(/[^\w\s]/gi, '').trim();
-
                 const searchRes = await fetch("https://google.serper.dev/search", {
                     method: "POST",
                     headers: { "X-API-KEY": searchApiKey, "Content-Type": "application/json" },
@@ -43,26 +41,40 @@ export default async function handler(req, res) {
             } catch (e) { console.error("Search Fail"); }
         }
 
+        // --- 2. MODEL & PROMPT SELECTION ---
         const modelId = imageBase64 ? "llama-3.2-90b-vision-preview" : "llama-3.3-70b-versatile";
 
-        // --- SYSTEM PROMPT: THE SUPREME GURU ---
         const systemPrompt = `Kamu adalah Riksan AI v3.3 (Supreme Core). 
-        Identity: Developed by Riksan (CTO SawargiPay). 
-        Waktu Sekarang: April 2026.
+        Identity: Developed by Riksan (CTO SawargiPay). April 2026.
 
         LOGIKA GURU PINTAR & VISION:
-        - Jika ada gambar, sapa antusias: "Ouh, ini gambar [Benda], Bos!"
-        - Jelaskan secara SANGAT RINCI dan EDUKATIF (seperti guru pintar).
-        - Identifikasi objek, teks (OCR), atau kodingan di gambar tersebut.
+        - Jika ada gambar, sapa: "Ouh, ini gambar [Benda], Bos!"
+        - Jelaskan secara SANGAT RINCI dan EDUKATIF.
+        - Identifikasi objek, teks (OCR), atau kodingan di gambar.
 
         KEMAMPUAN MULTI-DOMAIN:
-        1. MASTER CODING: Solusi arsitektur software & debugging kelas berat.
-        2. MATHEMATICIAN: Selesaikan soal matematika dengan LaTeX.
-        3. ANALYST: Gunakan data Google Search ini untuk jawaban 100% akurat: \n${webResults}
-        4. EFISIENSI: Berikan jawaban langsung ke intinya, jangan bertele-tele.
+        1. MASTER CODING: Arsitektur & debugging.
+        2. MATHEMATICIAN: Soal matematika dengan LaTeX.
+        3. ANALYST: Gunakan data Google ini: \n${webResults}
+        4. EFISIENSI: Langsung ke intinya, jangan bertele-tele.
 
-        GAYA BAHASA: Cerdas, teknis, solutif, panggil 'Bos'. Jawab dengan Markdown profesional.`;
+        GAYA BAHASA: Cerdas, teknis, solutif, panggil 'Bos'.`;
 
+        // --- 3. CONSTRUCT MESSAGES (STABLE STRUCTURE) ---
+        let userContent = [];
+        
+        // Input Teks
+        userContent.push({ type: "text", text: message || "Jelaskan secara cerdas, Bos!" });
+        
+        // Input Gambar (Jika ada)
+        if (imageBase64) {
+            userContent.push({
+                type: "image_url",
+                image_url: { url: imageBase64 }
+            });
+        }
+
+        // --- 4. FETCH TO GROQ ---
         const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
             method: "POST",
             headers: {
@@ -73,10 +85,7 @@ export default async function handler(req, res) {
                 model: modelId,
                 messages: [
                     { role: "system", content: systemPrompt },
-                    { role: "user", content: [
-                        { type: "text", text: message || "Analisis ini secara cerdas, Bos." },
-                        ...(imageBase64 ? [{ type: "image_url", image_url: { url: imageBase64 } }] : [])
-                    ] }
+                    { role: "user", content: userContent }
                 ],
                 temperature: (needsSearch || imageBase64) ? 0.1 : 0.5,
                 max_tokens: 4000
@@ -84,15 +93,19 @@ export default async function handler(req, res) {
         });
 
         const data = await response.json();
+
         if (data.choices && data.choices[0]) {
             res.status(200).json({ reply: data.choices[0].message.content, success: true });
         } else {
-            throw new Error(data.error?.message || "Groq Error");
+            // Log error dari Groq untuk debugging
+            console.error("Groq API Error Detail:", data);
+            throw new Error(data.error?.message || "Groq API Reject");
         }
 
     } catch (error) {
+        console.error("Fatal Backend Error:", error);
         res.status(500).json({ 
-            reply: "Duh Bos, sistem lagi sinkronisasi. Pastikan API Key di Vercel sudah benar dan file tidak terlalu besar!", 
+            reply: `Duh Bos, saraf pusat (Server) error! \n\nDetail: ${error.message}. \n\nPastikan API Key valid dan file gambar tidak terlalu besar.`, 
             success: false 
         });
     }
