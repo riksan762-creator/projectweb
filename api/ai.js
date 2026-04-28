@@ -3,9 +3,7 @@ export const config = {
 };
 
 export default async function handler(req, res) {
-    const apiKey = process.env.GROQ_API_KEY;
-    const searchApiKey = process.env.SERPER_API_KEY;
-    const stabilityKey = process.env.STABILITY_API_KEY;
+    const { GROQ_API_KEY, SERPER_API_KEY, STABILITY_API_KEY } = process.env;
 
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -16,119 +14,133 @@ export default async function handler(req, res) {
 
     try {
         const { message, imageBase64 } = req.body;
-        let deepSearchContext = "";
+        let searchContext = "";
         let tiktokInfo = null;
         let aiGeneratedImg = null;
+        let stabilityStatus = "idle";
 
-        // --- 1. NEURAL SEARCH ENGINE (SMART NEWS & WEB AGGREGATOR) ---
-        // Pemicu lebih cerdas: Jika menanyakan fakta, berita, atau hal random yang butuh update
-        const needsRealTime = /apa|siapa|kapan|dimana|kenapa|bagaimana|berita|info|terjadi|update|cek|hari ini|minggu ini/i.test(message);
+        // --- 1. DETECTOR ENGINE (SMART TRIGGER) ---
+        const isVisualTask = /buat|gambar|foto|desain|render|logo|lukis|generate/i.test(message);
+        const isTikTokTask = /https?:\/\/(www\.|v[mt]\.)?tiktok\.com\/[\w\d\/]+/i.test(message);
+        // Search otomatis aktif jika ada pertanyaan fakta atau instruksi 'cari'
+        const isSearchTask = /apa|siapa|kapan|dimana|kenapa|bagaimana|berita|info|cek|cari|search|update/i.test(message);
+
+        const tasks = [];
+
+        // --- 2. MULTI-THREADING SYNC (SEARCH & MEDIA) ---
         
-        if (needsRealTime && searchApiKey) {
-            try {
-                // Menggunakan Serper dengan parameter lebih luas (gl: id, hl: id agar berita lokal Indonesia kuat)
-                const sRes = await fetch("https://google.serper.dev/search", {
-                    method: "POST",
-                    headers: { "X-API-KEY": searchApiKey, "Content-Type": "application/json" },
-                    body: JSON.stringify({ 
-                        q: message, 
-                        gl: "id", 
-                        hl: "id", 
-                        num: 6, // Ambil lebih banyak sumber agar jawaban lebih kaya
-                        autocorrect: true 
-                    })
-                });
-                const sData = await sRes.json();
-                
-                // Gabungkan Berita (News), Hasil Organik, dan Sitelinks
-                const organicResults = sData.organic?.map(s => `[BERITA/SUMBER]: ${s.title} | Link: ${s.link} | Konten: ${s.snippet}`).join("\n\n") || "";
-                const topStories = sData.news?.map(n => `[BREAKING NEWS]: ${n.title} (${n.date}) - ${n.snippet}`).join("\n") || "";
-                
-                deepSearchContext = `DATA TERBARU APRIL 2026:\n${topStories}\n${organicResults}`;
-                
-                if (sData.answerBox) {
-                    deepSearchContext += `\n[FAKTA INSTAN]: ${sData.answerBox.answer || sData.answerBox.snippet}`;
-                }
-            } catch (e) { console.error("Search module error."); }
-        }
-
-        // --- 2. TIKTOK MASTER DOWNLOADER ---
-        const tiktokRegex = /https?:\/\/(www\.|v[mt]\.)?tiktok\.com\/[\w\d\/]+/i;
-        if (tiktokRegex.test(message)) {
-            try {
-                const tiktokUrl = message.match(tiktokRegex)[0];
-                const ttRes = await fetch(`https://www.tikwm.com/api/?url=${tiktokUrl}`);
-                const ttData = await ttRes.json();
-                if (ttData.code === 0) {
-                    tiktokInfo = ttData.data;
-                    deepSearchContext += `\n[TIKTOK INFO]: Video dari ${tiktokInfo.author.nickname} sedang dianalisis.`;
-                }
-            } catch (e) { console.error("TikTok Scraper error."); }
-        }
-
-        // --- 3. STABILITY AI (CREATIVE ENGINE) ---
-        const isVisual = /buat|gambar|foto|desain|render|logo|lukis/i.test(message);
-        if (isVisual && stabilityKey) {
-            try {
-                const engineId = 'stable-diffusion-v1-6';
-                const endpoint = imageBase64 ? "image-to-image" : "text-to-image";
-                const body = {
-                    cfg_scale: 8, height: 512, width: 512, steps: 35,
-                    text_prompts: [{ text: `${message}, professional, high detail, masterpiece`, weight: 1 }],
-                };
-                if (imageBase64) {
-                    body.init_image = imageBase64.split(',')[1] || imageBase64;
-                    body.image_strength = 0.4;
-                }
-                const sRes = await fetch(`https://api.stability.ai/v1/generation/${engineId}/${endpoint}`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json", Accept: "application/json", Authorization: `Bearer ${stabilityKey}` },
-                    body: JSON.stringify(body),
-                });
-                if (sRes.ok) {
+        // A. Google Search Sync (Serper)
+        if (isSearchTask && SERPER_API_KEY) {
+            tasks.push((async () => {
+                try {
+                    const sRes = await fetch("https://google.serper.dev/search", {
+                        method: "POST",
+                        headers: { "X-API-KEY": SERPER_API_KEY, "Content-Type": "application/json" },
+                        body: JSON.stringify({ q: message, gl: "id", hl: "id", num: 5 })
+                    });
                     const sData = await sRes.json();
-                    aiGeneratedImg = sData.artifacts[0].base64;
-                }
-            } catch (e) { console.error("Stability error."); }
+                    
+                    const news = sData.news?.map(n => `[NEWS]: ${n.title} - ${n.snippet}`).join("\n") || "";
+                    const web = sData.organic?.map(o => `${o.snippet}`).join("\n") || "";
+                    const answer = sData.answerBox?.answer || sData.answerBox?.snippet || "";
+                    
+                    searchContext = `[REAL-TIME DATA APRIL 2026]:\n${answer}\n${news}\n${web}`;
+                } catch (e) { console.error("Search module sync failed."); }
+            })());
         }
 
-        // --- 4. GROQ AI SUPREME BRAIN (LLAMA 3.3) ---
-        const systemPrompt = `Kamu adalah Riksan AI v4.1 (Neural-Link). CTO: Riksan.
-        Identity: Supreme AI Master Coding, Global Finance Advisor, & News Aggregator Specialist.
-        April 2026 Context: Gunakan data pencarian terbaru untuk menjawab secara cerdas dan akurat.
-        Tugas: Jika ada data pencarian, jangan jawab "berdasarkan pencarian saya", tapi langsung jelaskan faktanya seolah kamu tahu segalanya.
-        Keahlian: Coding, Ekonomi Global, Sejarah, Sains, dan Analisis Berita Random.
-        Gaya: Cerdas, panggil 'Bos', profesional, gunakan Markdown & LaTeX.
-        Konteks Pencarian Aktif: ${deepSearchContext}`;
+        // B. TikTok Downloader Sync
+        if (isTikTokTask) {
+            tasks.push((async () => {
+                try {
+                    const ttUrl = message.match(/https?:\/\/(www\.|v[mt]\.)?tiktok\.com\/[\w\d\/]+/i)[0];
+                    const ttRes = await fetch(`https://www.tikwm.com/api/?url=${ttUrl}`);
+                    const ttData = await ttRes.json();
+                    if (ttData.code === 0) tiktokInfo = ttData.data;
+                } catch (e) { console.error("TikTok module sync failed."); }
+            })());
+        }
+
+        // C. Stability AI Sync
+        if (isVisualTask && STABILITY_API_KEY) {
+            tasks.push((async () => {
+                try {
+                    const endpoint = imageBase64 ? "image-to-image" : "text-to-image";
+                    const body = {
+                        cfg_scale: 7, height: 512, width: 512, steps: 30, samples: 1,
+                        text_prompts: [{ text: `${message}, masterpiece, ultra high quality, detailed`, weight: 1 }]
+                    };
+                    if (imageBase64) {
+                        body.init_image = imageBase64.split(',')[1] || imageBase64;
+                        body.image_strength = 0.4;
+                    }
+                    const sRes = await fetch(`https://api.stability.ai/v1/generation/stable-diffusion-v1-6/${endpoint}`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json", Accept: "application/json", Authorization: `Bearer ${STABILITY_API_KEY}` },
+                        body: JSON.stringify(body)
+                    });
+                    if (sRes.ok) {
+                        const sData = await sRes.json();
+                        aiGeneratedImg = sData.artifacts[0].base64;
+                        stabilityStatus = "success";
+                    }
+                } catch (e) { stabilityStatus = "error"; }
+            })());
+        }
+
+        // TUNGGU SEMUA ASISTEN SELESAI BEKERJA
+        await Promise.all(tasks);
+
+        // --- 3. GROQ SUPREME BRAIN (LLAMA 3.3) ---
+        const modelId = imageBase64 ? "llama-3.2-90b-vision-preview" : "llama-3.3-70b-versatile";
+        
+        // SINKRONISASI CONTEXT KE PESAN USER
+        const enrichedUserMessage = `
+        Konteks Pencarian Terkini: ${searchContext}
+        Status Gambar: ${stabilityStatus === 'success' ? 'Sudah Dibuat' : 'Tidak Ada'}
+        
+        Instruksi User: ${message}
+        `;
+
+        const systemPrompt = `Kamu adalah Riksan AI v4.6 (Supreme Neural). Dikembangkan oleh Riksan (CTO SawargiPay).
+        Identity: Master Coding, Math Specialist (LaTeX), & News Aggregator. 
+        Tugas: Jawab instruksi Bos secara cerdas menggunakan data pencarian yang tersedia. 
+        JANGAN bilang "berdasarkan pencarian saya", sampaikan secara alami seolah kamu maha tahu.
+        Jika status gambar 'Sudah Dibuat', beritahu Bos bahwa gambarnya sudah muncul di bawah.
+        Panggil 'Bos', gunakan bahasa cerdas dan profesional.`;
 
         const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
             method: "POST",
-            headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
+            headers: { "Authorization": `Bearer ${GROQ_API_KEY}`, "Content-Type": "application/json" },
             body: JSON.stringify({
-                model: imageBase64 ? "llama-3.2-90b-vision-preview" : "llama-3.3-70b-versatile",
-                messages: [{ role: "system", content: systemPrompt }, { role: "user", content: message }],
-                temperature: 0.25
+                model: modelId,
+                messages: [
+                    { role: "system", content: systemPrompt },
+                    { role: "user", content: enrichedUserMessage }
+                ],
+                temperature: 0.2
             })
         });
 
         const data = await groqRes.json();
-        let aiReply = data.choices[0]?.message?.content || "Sirkuit otak saya agak panas, coba lagi Bos!";
+        let aiReply = data.choices[0]?.message?.content || "Duh Bos, saraf pusat overload!";
 
-        // --- 5. FINAL PACKAGING (LINK & MEDIA RAPI) ---
-
-        // TikTok Downloader Link
+        // --- 4. PACKAGING OUTPUT ---
+        
+        // Tambahkan Link TikTok
         if (tiktokInfo) {
-            aiReply += `\n\n---\n### 📥 TIKTOK DOWNLOAD CENTER\n**[👉 KLIK DISINI UNTUK SIMPAN VIDEO](${tiktokInfo.play})**\n> *Judul: ${tiktokInfo.title} | Creator: @${tiktokInfo.author.nickname}*`;
+            aiReply += `\n\n---\n### 📥 TIKTOK DOWNLOAD\n**[👉 KLIK DISINI UNTUK DOWNLOAD VIDEO](${tiktokInfo.play})**\n> *Creator: @${tiktokInfo.author.nickname}*`;
         }
 
-        // Stability AI Output
+        // Tambahkan Gambar AI
         if (aiGeneratedImg) {
-            aiReply += `\n\n---\n### 🎨 AI GENERATED IMAGE\n![Result](data:image/png;base64,${aiGeneratedImg})\n\n**[👉 SIMPAN KE GALERI](data:image/png;base64,${aiGeneratedImg})**`;
+            const base64Url = `data:image/png;base64,${aiGeneratedImg}`;
+            aiReply += `\n\n---\n### 🎨 HASIL KARYA AI\n![Result](${base64Url})\n\n**[👉 DOWNLOAD GAMBAR](${base64Url})**`;
         }
 
         res.status(200).json({ reply: aiReply, success: true });
 
     } catch (error) {
-        res.status(500).json({ reply: "Duh Bos, server overload!", success: false });
+        res.status(500).json({ reply: "Duh Bos, server sedang dalam maintenance/overload!", success: false });
     }
 }
