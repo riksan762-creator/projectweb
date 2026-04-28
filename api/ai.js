@@ -16,67 +16,71 @@ export default async function handler(req, res) {
 
     try {
         const { message, imageBase64 } = req.body;
-        
-        // CONTAINER DATA (SYNC POINT)
-        let aiGeneratedImg = null;
-        let tiktokMetadata = null;
         let webResults = "";
-        
-        // Flag untuk kasih tau Groq
-        let stabilityStatus = "TIDAK_AKTIF";
+        let tiktokMetadata = null;
+        let aiGeneratedImg = null;
+        let visualDescription = "";
 
-        // --- 1. PRE-PROCESSING (TIKTOK & SEARCH) ---
-        // Cek TikTok (Tetap Ada)
-        const ttRegex = /https?:\/\/(www\.|v[mt]\.)?tiktok\.com\/[\w\d\/]+/i;
-        if (ttRegex.test(message)) {
+        // --- 1. MODUL TIKTOK (AUTO-RECOGNITION) ---
+        const tiktokRegex = /https?:\/\/(www\.|v[mt]\.)?tiktok\.com\/[\w\d\/]+/i;
+        if (tiktokRegex.test(message)) {
             try {
-                const ttUrl = message.match(ttRegex)[0];
-                const ttRes = await fetch(`https://www.tikwm.com/api/?url=${ttUrl}`);
+                const tiktokUrl = message.match(tiktokRegex)[0];
+                const ttRes = await fetch(`https://www.tikwm.com/api/?url=${tiktokUrl}`);
                 const ttData = await ttRes.json();
-                if (ttData.code === 0) tiktokMetadata = ttData.data;
-            } catch (e) { console.error("TT Error"); }
+                if (ttData.code === 0) {
+                    tiktokMetadata = ttData.data;
+                    webResults += `\n[TIKTOK DATA]: Title: ${tiktokMetadata.title}, Author: ${tiktokMetadata.author.nickname}`;
+                }
+            } catch (e) { console.error("TikTok Scraper Error."); }
         }
 
-        // Cek Search (Tetap Ada)
-        const needsSearch = /cari|search|berita|update|market/i.test(message);
-        if (needsSearch && !tiktokMetadata && searchApiKey) {
+        // --- 2. MODUL VISION (DETEKSI KONTEKS GAMBAR) ---
+        // Jika Bos kirim gambar, kita tanya Groq Vision dulu ini gambar apa buat bahan Stability/Coding
+        if (imageBase64) {
             try {
-                const searchRes = await fetch("https://google.serper.dev/search", {
+                const visionRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
                     method: "POST",
-                    headers: { "X-API-KEY": searchApiKey, "Content-Type": "application/json" },
-                    body: JSON.stringify({ q: message, gl: "id", hl: "id", num: 4 })
+                    headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        model: "llama-3.2-90b-vision-preview",
+                        messages: [{
+                            role: "user",
+                            content: [
+                                { type: "text", text: "Jelaskan secara singkat elemen visual utama gambar ini untuk prompt AI generation." },
+                                { type: "image_url", image_url: { url: imageBase64 } }
+                            ]
+                        }]
+                    })
                 });
-                const sData = await searchRes.json();
-                webResults = sData.organic?.map(s => `[${s.title}]: ${s.snippet}`).join("\n") || "";
-            } catch (e) { console.error("Search Error"); }
+                const visionData = await visionRes.json();
+                visualDescription = visionData.choices[0].message.content;
+            } catch (e) { console.error("Vision detection failed."); }
         }
 
-        // --- 2. EXECUTION PHASE (STABILITY AI SYNC) ---
-        // Modul ini HARUS selesai sebelum Groq dipanggil
-        const isGenTask = /buatkan|generate|gambar|lukis|edit|foto|design/i.test(message);
+        // --- 3. MODUL STABILITY AI (FORCE GENERATE MODE) ---
+        // Dibikin "Pintar": Perintah apapun yang berbau visual atau kreatif akan trigered
+        const isCreative = /buat|gambar|foto|design|edit|visual|art|lukis|render|logo|bg/i.test(message) || visualDescription !== "";
         
-        if (isGenTask && stabilityKey) {
+        if (isCreative && stabilityKey) {
             try {
                 const engineId = 'stable-diffusion-v1-6';
-                let endpoint = "text-to-image";
+                let endpoint = imageBase64 ? "image-to-image" : "text-to-image";
                 
-                // Prompt Auto-Enhance agar hasil "Wah" (Aesthetic 2026)
-                const enhancedPrompt = `${message}, professional digital art, masterpiece, 8k resolution, cinematic lighting, sharp focus, trend on artstation`;
-
+                // Prompt Engineering Otomatis
+                const finalPrompt = `${message}. ${visualDescription}. High quality, 4k, masterpiece, highly detailed professional lighting.`;
+                
                 const body = {
-                    cfg_scale: 7,
+                    cfg_scale: 8,
                     height: 512,
                     width: 512,
-                    steps: 35,
-                    samples: 1,
-                    text_prompts: [{ text: enhancedPrompt, weight: 1 }]
+                    steps: 30,
+                    text_prompts: [{ text: finalPrompt, weight: 1 }],
                 };
 
-                // Jika ada gambar (Edit / Image-to-Image)
                 if (imageBase64) {
-                    endpoint = "image-to-image";
-                    body.init_image = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
-                    body.image_strength = 0.35; 
+                    body.init_image = imageBase64.split(',')[1] || imageBase64;
+                    body.image_strength = /hapus|remove/i.test(message) ? 0.15 : 0.4;
                 }
 
                 const sRes = await fetch(`https://api.stability.ai/v1/generation/${engineId}/${endpoint}`, {
@@ -91,42 +95,46 @@ export default async function handler(req, res) {
 
                 if (sRes.ok) {
                     const sData = await sRes.json();
-                    if (sData.artifacts && sData.artifacts[0]) {
-                        aiGeneratedImg = sData.artifacts[0].base64;
-                        // UPDATE STATUS UNTUK GROQ
-                        stabilityStatus = "SUKSES_BUAT_GAMBAR";
-                    }
-                } else {
-                    stabilityStatus = "ERROR_API_STABILITY";
+                    aiGeneratedImg = sData.artifacts[0].base64;
                 }
-            } catch (e) { 
-                console.error("Stability Sync Error:", e);
-                stabilityStatus = "ERROR_RUNTIME";
-            }
+            } catch (e) { console.error("Stability Error."); }
         }
 
-        // --- 3. BRAIN CENTER (GROQ) - DIKASIH TAU HASIL STABILITY ---
-        const modelId = imageBase64 ? "llama-3.2-90b-vision-preview" : "llama-3.3-70b-versatile";
-        
-        // Sinkronisasi Prompt: Groq HARUS tahu status gambar
-        const promptContext = `\n\n[SISTEM INFO]: Status Stability AI = ${stabilityStatus}. ${webResults}`;
+        // --- 4. MASTER CODING & SEARCH ENGINE ---
+        const needsSearch = /cari|search|update|berita|info/i.test(message);
+        if (needsSearch && searchApiKey) {
+            try {
+                const searchRes = await fetch("https://google.serper.dev/search", {
+                    method: "POST",
+                    headers: { "X-API-KEY": searchApiKey, "Content-Type": "application/json" },
+                    body: JSON.stringify({ q: message, gl: "id", hl: "id", num: 3 })
+                });
+                const sData = await searchRes.json();
+                webResults += sData.organic?.map(s => s.snippet).join(" ") || "";
+            } catch (e) { console.error("Search Error."); }
+        }
 
-        const systemPrompt = `Kamu adalah Riksan AI v4.0 (Supreme Core). developed by Riksan (SawargiPay CTO).
-        Identity: Waktu Sekarang: April 2026.
-        Gaya Bahasa: Cerdas, lugas, panggil 'Bos', Markdown profesional.
-        Keahlian: Master Coding, Mathematician (LaTeX), AI Specialist, & Generative Art Director.
-        Instruksi Sinkronisasi: Jika Status Stability AI = SUKSES_BUAT_GAMBAR, konfirmasi dengan bangga kalau Bos bisa mendownload gambarnya di bawah. JANGAN bilang kamu tidak bisa buat gambar.`;
+        // --- 5. GROQ AI CORE (FINAL BRAIN) ---
+        const systemPrompt = `Kamu adalah Riksan AI v3.8 (Supreme Core) CTO: Riksan.
+        Identity: Supreme AI Master Coding & Generative Specialist.
+        Keahlian: Debugging tingkat tinggi, Arsitektur Software, Matematika (LaTeX), dan Desainer Visual.
+        Tugas: Analisis semua data (TikTok, Search, Image Description) dan berikan solusi teknis terbaik.
+        Gaya: Cerdas, panggil 'Bos', Markdown profesional, to-the-point.
+        Konteks Tambahan: ${webResults} ${visualDescription}`;
 
         const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
             method: "POST",
             headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
             body: JSON.stringify({
-                model: modelId,
+                model: imageBase64 ? "llama-3.2-90b-vision-preview" : "llama-3.3-70b-versatile",
                 messages: [
                     { role: "system", content: systemPrompt },
-                    { role: "user", content: [{ type: "text", text: message + promptContext }, ...(imageBase64 ? [{ type: "image_url", image_url: { url: imageBase64 } }] : [])] }
+                    { role: "user", content: [
+                        { type: "text", text: message || "Analisis sistem secara mendalam, Bos!" },
+                        ...(imageBase64 ? [{ type: "image_url", image_url: { url: imageBase64 } }] : [])
+                    ]}
                 ],
-                temperature: 0.2
+                temperature: 0.3
             })
         });
 
@@ -134,19 +142,19 @@ export default async function handler(req, res) {
         if (data.choices && data.choices[0]) {
             let aiReply = data.choices[0].message.content;
 
-            // --- 4. OUTPUT HANDLER (APPENDING RESULTS) ---
-            
-            // Append TikTok (Jika Ada)
+            // --- OUTPUT INTEGRATION ---
             if (tiktokMetadata) {
-                const ttLink = `https://www.tikwm.com/video/media/play/${tiktokMetadata.id}.mp4`;
-                aiReply += `\n\n---\n### 📥 TIKTOK DOWNLOAD AREA\n**[👉 KLIK DISINI UNTUK SIMPAN VIDEO](${ttLink})**`;
+                const dl = `https://www.tikwm.com/video/media/play/${tiktokMetadata.id}.mp4`;
+                aiReply += `\n\n---\n### 📥 TIKTOK DOWNLOAD\n**[👉 KLIK UNTUK SIMPAN VIDEO](${dl})**`;
             }
 
-            // Append Gambar Stability (Ini yang Paling Penting)
             if (aiGeneratedImg) {
-                // Memberikan prefix data:image agar UI mengenali sebagai gambar
-                const finalImgUrl = `data:image/png;base64,${aiGeneratedImg}`;
-                aiReply += `\n\n---\n### 🎨 HASIL KARYA AI (STABILITY)\n` +
-                           `**[👉 KLIK DISINI UNTUK DOWNLOAD GAMBAR](${finalImgUrl})Langsung **Redeploy** ke Vercel, Bos Riksan! Saya jamin 100% Groq ga bakal berani ngomong *"Saya tidak bisa buat gambar"* lagi, karena saya sudah "suntik" status keberhasilan Stability AI langsung ke dalam konteks berpikirnya si Groq.
+                aiReply += `\n\n---\n### 🎨 STABILITY AI OUTPUT\n![Generated Image](data:image/png;base64,${aiGeneratedImg})\n\n> *Bos, visual di atas dibuat otomatis berdasarkan analisis konteks instruksi Anda.*`;
+            }
 
-Gaskeun tes perintah *"Bos, buatkan gambar kucing cyberpunk"* setelah redeploy! 🚀🔥
+            res.status(200).json({ reply: aiReply, success: true });
+        }
+    } catch (error) {
+        res.status(500).json({ reply: "Duh Bos, server lagi overload!", success: false });
+    }
+}
