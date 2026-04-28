@@ -16,29 +16,43 @@ export default async function handler(req, res) {
 
     try {
         const { message, imageBase64 } = req.body;
-        let globalContext = "";
+        let deepSearchContext = "";
         let tiktokInfo = null;
         let aiGeneratedImg = null;
 
-        // --- 1. UNIVERSAL SEARCH ENGINE (Cari Apa Saja!) ---
-        // Sistem otomatis mencari jika ada pertanyaan yang butuh info update/fakta eksternal
-        const looksLikeQuestion = /apa|siapa|kapan|dimana|kenapa|bagaimana|cari|berita|info|harga|tutorial/i.test(message);
+        // --- 1. NEURAL SEARCH ENGINE (SMART NEWS & WEB AGGREGATOR) ---
+        // Pemicu lebih cerdas: Jika menanyakan fakta, berita, atau hal random yang butuh update
+        const needsRealTime = /apa|siapa|kapan|dimana|kenapa|bagaimana|berita|info|terjadi|update|cek|hari ini|minggu ini/i.test(message);
         
-        if (looksLikeQuestion && searchApiKey) {
+        if (needsRealTime && searchApiKey) {
             try {
+                // Menggunakan Serper dengan parameter lebih luas (gl: id, hl: id agar berita lokal Indonesia kuat)
                 const sRes = await fetch("https://google.serper.dev/search", {
                     method: "POST",
                     headers: { "X-API-KEY": searchApiKey, "Content-Type": "application/json" },
-                    body: JSON.stringify({ q: message, gl: "id", hl: "id", num: 5 })
+                    body: JSON.stringify({ 
+                        q: message, 
+                        gl: "id", 
+                        hl: "id", 
+                        num: 6, // Ambil lebih banyak sumber agar jawaban lebih kaya
+                        autocorrect: true 
+                    })
                 });
                 const sData = await sRes.json();
-                // Gabungkan hasil organik dan knowledge graph untuk jawaban lebih "pintar"
-                globalContext = sData.organic?.map(s => `[Source: ${s.title}]: ${s.snippet}`).join("\n") || "";
-                if (sData.answerBox) globalContext += `\n[Direct Answer]: ${sData.answerBox.answer || sData.answerBox.snippet}`;
-            } catch (e) { console.error("Universal Search Error"); }
+                
+                // Gabungkan Berita (News), Hasil Organik, dan Sitelinks
+                const organicResults = sData.organic?.map(s => `[BERITA/SUMBER]: ${s.title} | Link: ${s.link} | Konten: ${s.snippet}`).join("\n\n") || "";
+                const topStories = sData.news?.map(n => `[BREAKING NEWS]: ${n.title} (${n.date}) - ${n.snippet}`).join("\n") || "";
+                
+                deepSearchContext = `DATA TERBARU APRIL 2026:\n${topStories}\n${organicResults}`;
+                
+                if (sData.answerBox) {
+                    deepSearchContext += `\n[FAKTA INSTAN]: ${sData.answerBox.answer || sData.answerBox.snippet}`;
+                }
+            } catch (e) { console.error("Search module error."); }
         }
 
-        // --- 2. TIKTOK DOWNLOADER MASTER ---
+        // --- 2. TIKTOK MASTER DOWNLOADER ---
         const tiktokRegex = /https?:\/\/(www\.|v[mt]\.)?tiktok\.com\/[\w\d\/]+/i;
         if (tiktokRegex.test(message)) {
             try {
@@ -47,20 +61,20 @@ export default async function handler(req, res) {
                 const ttData = await ttRes.json();
                 if (ttData.code === 0) {
                     tiktokInfo = ttData.data;
-                    globalContext += `\n[TIKTOK DETECTED]: ${tiktokInfo.title}`;
+                    deepSearchContext += `\n[TIKTOK INFO]: Video dari ${tiktokInfo.author.nickname} sedang dianalisis.`;
                 }
-            } catch (e) { console.error("TikTok Error"); }
+            } catch (e) { console.error("TikTok Scraper error."); }
         }
 
-        // --- 3. STABILITY AI (GENERATE APA SAJA) ---
-        const isVisual = /buat|gambar|foto|desain|render|visual|logo/i.test(message);
+        // --- 3. STABILITY AI (CREATIVE ENGINE) ---
+        const isVisual = /buat|gambar|foto|desain|render|logo|lukis/i.test(message);
         if (isVisual && stabilityKey) {
             try {
                 const engineId = 'stable-diffusion-v1-6';
                 const endpoint = imageBase64 ? "image-to-image" : "text-to-image";
                 const body = {
-                    cfg_scale: 7, height: 512, width: 512, steps: 30,
-                    text_prompts: [{ text: `${message}, ultra high quality, detailed, 4k`, weight: 1 }],
+                    cfg_scale: 8, height: 512, width: 512, steps: 35,
+                    text_prompts: [{ text: `${message}, professional, high detail, masterpiece`, weight: 1 }],
                 };
                 if (imageBase64) {
                     body.init_image = imageBase64.split(',')[1] || imageBase64;
@@ -75,16 +89,17 @@ export default async function handler(req, res) {
                     const sData = await sRes.json();
                     aiGeneratedImg = sData.artifacts[0].base64;
                 }
-            } catch (e) { console.error("Stability AI Error"); }
+            } catch (e) { console.error("Stability error."); }
         }
 
-        // --- 4. GROQ AI SUPREME BRAIN ---
-        const systemPrompt = `Kamu adalah Riksan AI v4.0. CTO: Riksan (SawargiPay).
-        Identity: Supreme AI Master Coding, Global Finance Expert, & Universal Knowledge Specialist.
-        Tugas: Kamu bisa menjawab APAPUN. Gunakan data pencarian yang disediakan untuk menjawab pertanyaan random dari Bos.
-        Keahlian: Coding, Matematika (LaTeX), Analisis Pasar, Sejarah, Sains, hingga Gosip Populer.
-        Gaya: Cerdas, panggil 'Bos', profesional, gunakan Markdown rapi.
-        Data Pencarian Real-time: ${globalContext}`;
+        // --- 4. GROQ AI SUPREME BRAIN (LLAMA 3.3) ---
+        const systemPrompt = `Kamu adalah Riksan AI v4.1 (Neural-Link). CTO: Riksan.
+        Identity: Supreme AI Master Coding, Global Finance Advisor, & News Aggregator Specialist.
+        April 2026 Context: Gunakan data pencarian terbaru untuk menjawab secara cerdas dan akurat.
+        Tugas: Jika ada data pencarian, jangan jawab "berdasarkan pencarian saya", tapi langsung jelaskan faktanya seolah kamu tahu segalanya.
+        Keahlian: Coding, Ekonomi Global, Sejarah, Sains, dan Analisis Berita Random.
+        Gaya: Cerdas, panggil 'Bos', profesional, gunakan Markdown & LaTeX.
+        Konteks Pencarian Aktif: ${deepSearchContext}`;
 
         const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
             method: "POST",
@@ -92,28 +107,28 @@ export default async function handler(req, res) {
             body: JSON.stringify({
                 model: imageBase64 ? "llama-3.2-90b-vision-preview" : "llama-3.3-70b-versatile",
                 messages: [{ role: "system", content: systemPrompt }, { role: "user", content: message }],
-                temperature: 0.3
+                temperature: 0.25
             })
         });
 
         const data = await groqRes.json();
-        let aiReply = data.choices[0].message.content;
+        let aiReply = data.choices[0]?.message?.content || "Sirkuit otak saya agak panas, coba lagi Bos!";
 
-        // --- 5. FINAL PACKAGING (OUTPUT RAPI) ---
+        // --- 5. FINAL PACKAGING (LINK & MEDIA RAPI) ---
 
-        // TikTok Output
+        // TikTok Downloader Link
         if (tiktokInfo) {
-            aiReply += `\n\n---\n### 📥 TIKTOK DOWNLOADER\n- **Judul**: ${tiktokInfo.title}\n- **Creator**: @${tiktokInfo.author.nickname}\n\n**[👉 KLIK DISINI UNTUK DOWNLOAD/SIMPAN](${tiktokInfo.play})**\n> *Bos bisa buka link ini di Chrome/Safari lalu tahan video untuk simpan ke galeri.*`;
+            aiReply += `\n\n---\n### 📥 TIKTOK DOWNLOAD CENTER\n**[👉 KLIK DISINI UNTUK SIMPAN VIDEO](${tiktokInfo.play})**\n> *Judul: ${tiktokInfo.title} | Creator: @${tiktokInfo.author.nickname}*`;
         }
 
         // Stability AI Output
         if (aiGeneratedImg) {
-            aiReply += `\n\n---\n### 🎨 AI VISUAL RESULT\n![Result](data:image/png;base64,${aiGeneratedImg})\n\n**[👉 SIMPAN GAMBAR KE GALERI](data:image/png;base64,${aiGeneratedImg})**`;
+            aiReply += `\n\n---\n### 🎨 AI GENERATED IMAGE\n![Result](data:image/png;base64,${aiGeneratedImg})\n\n**[👉 SIMPAN KE GALERI](data:image/png;base64,${aiGeneratedImg})**`;
         }
 
         res.status(200).json({ reply: aiReply, success: true });
 
     } catch (error) {
-        res.status(500).json({ reply: "Duh Bos, koneksi otak saya lagi terganggu!", success: false });
+        res.status(500).json({ reply: "Duh Bos, server overload!", success: false });
     }
 }
