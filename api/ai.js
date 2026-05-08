@@ -1,26 +1,34 @@
 /**
- * Riksan AI — API Handler Supreme v5.0
+ * Riksan AI — API Handler Supreme v5.1
  * Author: Riksan (CTO SawargiPay)
  * Endpoint: /api/ai
- * Features: Chat · Vision · Web Search · TikTok DL · Image Gen · History
+ * Fix v5.1: Groq vision model + message format yang benar
  */
 
 export const config = {
     maxDuration: 90,
 };
 
-// ─── CONSTANTS ───────────────────────────────────────────────
-const GROQ_MODELS = [
-    "meta-llama/llama-4-maverick-17b-128e-instruct", // Primary — vision capable
-    "llama-3.3-70b-versatile",                         // Fallback 1
-    "llama-3.1-8b-instant",                            // Fallback 2 (fast)
+// ─── MODELS ──────────────────────────────────────────────────
+// Vision models (support image input) di Groq
+const GROQ_VISION_MODELS = [
+    "meta-llama/llama-4-scout-17b-16e-instruct",
+    "meta-llama/llama-4-maverick-17b-128e-instruct",
 ];
 
-const SEARCH_TRIGGERS = /berita|terbaru|hari ini|tanggal|sekarang|siapa|apa itu|kenapa|cek|cari|harga|cuaca|jadwal|terkini|latest|news|today|current|who is|what is/i;
+// Chat / coding models (lebih kuat untuk text)
+const GROQ_CHAT_MODELS = [
+    "llama-3.3-70b-versatile",
+    "llama-3.1-70b-versatile",
+    "llama-3.1-8b-instant",
+];
 
-const TIKTOK_REGEX = /https?:\/\/(www\.|v[mt]\.)?tiktok\.com\/[\w\d\-\/\?\=\&\%]+/i;
+// ─── REGEX ───────────────────────────────────────────────────
+const SEARCH_TRIGGERS  = /berita|terbaru|hari ini|tanggal|sekarang|siapa|apa itu|kenapa|cek|cari|harga|cuaca|jadwal|terkini|latest|news|today|current|who is|what is/i;
+const TIKTOK_REGEX     = /https?:\/\/(www\.|v[mt]\.)?tiktok\.com\/[\w\d\-\/\?\=\&\%]+/i;
+const IMAGE_GEN_REGEX  = /^(generate|buat|buatkan|create|gambar|bikin)\s+(gambar|image|foto|ilustrasi|artwork|photo)/i;
 
-// ─── CORS HELPER ─────────────────────────────────────────────
+// ─── CORS ────────────────────────────────────────────────────
 function setCORS(res) {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -33,21 +41,29 @@ export default async function handler(req, res) {
     if (req.method === 'OPTIONS') return res.status(200).end();
     if (req.method !== 'POST') return res.status(405).json({ error: "Method Not Allowed" });
 
-    const {
-        GROQ_API_KEY,
-        SERPER_API_KEY,
-        STABILITY_API_KEY,
-        OPENAI_API_KEY,
-    } = process.env;
+    const { GROQ_API_KEY, SERPER_API_KEY, STABILITY_API_KEY, OPENAI_API_KEY } = process.env;
+
+    if (!GROQ_API_KEY) {
+        return res.status(500).json({
+            success: false,
+            reply: "**Config Error:** `GROQ_API_KEY` belum di-set di Vercel Environment Variables, Bos."
+        });
+    }
 
     try {
-        const { message = "", imageBase64, systemPrompt, history = [], mode = "chat" } = req.body;
+        const {
+            message     = "",
+            imageBase64,
+            systemPrompt,
+            history     = [],
+            mode        = "chat",
+        } = req.body;
 
         if (!message && !imageBase64) {
             return res.status(400).json({ success: false, reply: "Pesan kosong, Bos!" });
         }
 
-        // ── DATETIME ──────────────────────────────────────────
+        // ── DATETIME WIB ─────────────────────────────────────
         const now = new Date();
         const dateString = now.toLocaleDateString('id-ID', {
             weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
@@ -55,47 +71,28 @@ export default async function handler(req, res) {
         });
         const timeString = now.toLocaleTimeString('id-ID', { timeZone: 'Asia/Jakarta' });
 
-        // ── PARALLEL TASKS ────────────────────────────────────
-        let searchContext = "";
-        let tiktokInfo = null;
+        // ── PARALLEL SIDE TASKS ───────────────────────────────
+        let searchContext     = "";
+        let tiktokInfo        = null;
         let generatedImageUrl = null;
-
-        const tasks = [];
+        const tasks           = [];
 
         // 1. WEB SEARCH
-        const needsSearch = SEARCH_TRIGGERS.test(message) || mode === "analyze";
-        if (needsSearch && SERPER_API_KEY) {
+        if (SERPER_API_KEY && SEARCH_TRIGGERS.test(message)) {
             tasks.push((async () => {
                 try {
-                    const sRes = await fetch("https://google.serper.dev/search", {
+                    const r = await fetch("https://google.serper.dev/search", {
                         method: "POST",
-                        headers: {
-                            "X-API-KEY": SERPER_API_KEY,
-                            "Content-Type": "application/json"
-                        },
-                        body: JSON.stringify({
-                            q: `${message} ${dateString}`,
-                            gl: "id", hl: "id", num: 5
-                        })
+                        headers: { "X-API-KEY": SERPER_API_KEY, "Content-Type": "application/json" },
+                        body: JSON.stringify({ q: `${message} ${dateString}`, gl: "id", hl: "id", num: 5 })
                     });
-                    const sData = await sRes.json();
-                    const results = sData.organic || [];
-
-                    // Extract judul + snippet untuk konteks lebih kaya
-                    searchContext = results.map((o, i) =>
-                        `[${i + 1}] ${o.title}\n${o.snippet}`
-                    ).join("\n\n");
-
-                    // Tambahkan answer box jika ada
-                    if (sData.answerBox?.answer) {
-                        searchContext = `📌 Answer: ${sData.answerBox.answer}\n\n` + searchContext;
-                    }
-                    if (sData.knowledgeGraph?.description) {
-                        searchContext = `📚 Knowledge: ${sData.knowledgeGraph.description}\n\n` + searchContext;
-                    }
-                } catch (e) {
-                    console.error("Search error:", e.message);
-                }
+                    const d = await r.json();
+                    const parts = [];
+                    if (d.answerBox?.answer)           parts.push(`Jawaban Langsung: ${d.answerBox.answer}`);
+                    if (d.knowledgeGraph?.description) parts.push(`Info: ${d.knowledgeGraph.description}`);
+                    (d.organic || []).forEach((o, i)   => parts.push(`[${i+1}] ${o.title}: ${o.snippet}`));
+                    searchContext = parts.join("\n\n");
+                } catch (e) { console.error("Search error:", e.message); }
             })());
         }
 
@@ -103,47 +100,36 @@ export default async function handler(req, res) {
         if (TIKTOK_REGEX.test(message)) {
             tasks.push((async () => {
                 try {
-                    const ttUrl = message.match(TIKTOK_REGEX)[0];
-
-                    // Coba tikwm dulu
-                    const ttRes = await fetch(`https://www.tikwm.com/api/?url=${encodeURIComponent(ttUrl)}`, {
+                    const url = message.match(TIKTOK_REGEX)[0];
+                    const r   = await fetch(`https://www.tikwm.com/api/?url=${encodeURIComponent(url)}`, {
                         headers: { 'User-Agent': 'Mozilla/5.0' }
                     });
-                    const ttData = await ttRes.json();
-
-                    if (ttData.code === 0 && ttData.data) {
-                        const d = ttData.data;
-                        const videoUrl = d.play || d.wmplay || "";
+                    const d = await r.json();
+                    if (d.code === 0 && d.data) {
+                        const play = d.data.play || d.data.wmplay || "";
                         tiktokInfo = {
-                            title: d.title || "Video TikTok",
-                            author: d.author?.nickname || "Unknown",
-                            duration: d.duration ? `${d.duration}s` : "-",
-                            dlLink: videoUrl.startsWith('http') ? videoUrl : `https://www.tikwm.com${videoUrl}`,
-                            dlNoWm: d.play?.startsWith('http') ? d.play : null,
-                            cover: d.cover || null,
+                            title:    d.data.title || "Video TikTok",
+                            author:   d.data.author?.nickname || "Unknown",
+                            duration: d.data.duration ? `${d.data.duration}s` : "-",
+                            dlLink:   play.startsWith('http') ? play : `https://www.tikwm.com${play}`,
                         };
                     }
-                } catch (e) {
-                    console.error("TikTok error:", e.message);
-                }
+                } catch (e) { console.error("TikTok error:", e.message); }
             })());
         }
 
-        // 3. IMAGE GENERATION (jika mode image atau keyword match)
-        const imageKeywords = /^(generate|buat|buatkan|create|gambar|bikin)\s+(gambar|image|foto|ilustrasi|artwork|photo)/i;
-        const wantsImage = mode === "image" || imageKeywords.test(message.trim());
-
+        // 3. IMAGE GENERATION
+        const wantsImage = mode === "image" || IMAGE_GEN_REGEX.test(message.trim());
         if (wantsImage && (STABILITY_API_KEY || OPENAI_API_KEY)) {
             tasks.push((async () => {
                 try {
-                    // Extract prompt bersih
-                    const imgPrompt = message
-                        .replace(/^(generate|buat|buatkan|create|bikin)\s+(gambar|image|foto|ilustrasi|artwork|photo)\s*(dari|tentang|:)?\s*/i, '')
+                    const prompt = message
+                        .replace(IMAGE_GEN_REGEX, '')
+                        .replace(/^(dari|tentang|:)\s*/i, '')
                         .trim() || message;
 
                     if (STABILITY_API_KEY) {
-                        // Stability AI — SDXL
-                        const sRes = await fetch("https://api.stability.ai/v1/generation/stable-diffusion-xl-1024-v1-0/text-to-image", {
+                        const r = await fetch("https://api.stability.ai/v1/generation/stable-diffusion-xl-1024-v1-0/text-to-image", {
                             method: "POST",
                             headers: {
                                 "Authorization": `Bearer ${STABILITY_API_KEY}`,
@@ -152,82 +138,62 @@ export default async function handler(req, res) {
                             },
                             body: JSON.stringify({
                                 text_prompts: [
-                                    { text: imgPrompt, weight: 1 },
+                                    { text: prompt, weight: 1 },
                                     { text: "blurry, ugly, deformed, watermark, low quality", weight: -1 }
                                 ],
-                                cfg_scale: 7,
-                                height: 1024,
-                                width: 1024,
-                                steps: 30,
-                                samples: 1,
+                                cfg_scale: 7, height: 1024, width: 1024, steps: 30, samples: 1,
                             })
                         });
-                        const sData = await sRes.json();
-                        if (sData.artifacts?.[0]?.base64) {
-                            generatedImageUrl = `data:image/png;base64,${sData.artifacts[0].base64}`;
+                        const d = await r.json();
+                        if (d.artifacts?.[0]?.base64) {
+                            generatedImageUrl = `data:image/png;base64,${d.artifacts[0].base64}`;
                         }
                     } else if (OPENAI_API_KEY) {
-                        // DALL-E 3 fallback
-                        const dRes = await fetch("https://api.openai.com/v1/images/generations", {
+                        const r = await fetch("https://api.openai.com/v1/images/generations", {
                             method: "POST",
-                            headers: {
-                                "Authorization": `Bearer ${OPENAI_API_KEY}`,
-                                "Content-Type": "application/json"
-                            },
-                            body: JSON.stringify({
-                                model: "dall-e-3",
-                                prompt: imgPrompt,
-                                n: 1, size: "1024x1024",
-                                quality: "standard"
-                            })
+                            headers: { "Authorization": `Bearer ${OPENAI_API_KEY}`, "Content-Type": "application/json" },
+                            body: JSON.stringify({ model: "dall-e-3", prompt, n: 1, size: "1024x1024" })
                         });
-                        const dData = await dRes.json();
-                        if (dData.data?.[0]?.url) {
-                            generatedImageUrl = dData.data[0].url;
-                        }
+                        const d = await r.json();
+                        if (d.data?.[0]?.url) generatedImageUrl = d.data[0].url;
                     }
-                } catch (e) {
-                    console.error("Image gen error:", e.message);
-                }
+                } catch (e) { console.error("Image gen error:", e.message); }
             })());
         }
 
-        // Run all tasks in parallel
         await Promise.all(tasks);
 
         // ── BUILD SYSTEM PROMPT ───────────────────────────────
-        const finalSystemPrompt = systemPrompt || buildDefaultSystemPrompt({
-            dateString, timeString, searchContext, mode
-        });
+        const sysPrompt = systemPrompt || buildSystemPrompt({ dateString, timeString, searchContext, mode });
 
-        // ── BUILD MESSAGES ────────────────────────────────────
-        const messages = [
-            { role: "system", content: finalSystemPrompt }
-        ];
+        // ── BUILD MESSAGES ARRAY ──────────────────────────────
+        const messages = [{ role: "system", content: sysPrompt }];
 
-        // Add conversation history (max 16 turns)
-        const recentHistory = (history || []).slice(-16);
-        for (const h of recentHistory) {
-            if (h.role && h.content) {
+        // History (max 16 turn, text-only — jangan kirim gambar lama)
+        for (const h of (history || []).slice(-16)) {
+            if (h.role && typeof h.content === "string" && h.content.trim()) {
                 messages.push({ role: h.role, content: h.content });
             }
         }
 
-        // Add current user message (with vision support)
+        // Pesan user sekarang — dengan atau tanpa gambar
         if (imageBase64) {
+            // FORMAT GROQ VISION YANG BENAR (v5.1 fix):
+            // 1. text type DULU, baru image_url
+            // 2. TIDAK ada field "detail" (Groq tidak support)
+            // 3. imageBase64 harus berupa full data URI: "data:image/jpeg;base64,..."
             messages.push({
                 role: "user",
                 content: [
                     {
-                        type: "image_url",
-                        image_url: {
-                            url: imageBase64,
-                            detail: "high"
-                        }
+                        type: "text",
+                        text: message || "Analisis gambar ini secara lengkap dan detail."
                     },
                     {
-                        type: "text",
-                        text: message || "Analisis gambar ini secara lengkap dan detail. Jelaskan semua yang kamu lihat."
+                        type: "image_url",
+                        image_url: {
+                            url: imageBase64
+                        }
                     }
                 ]
             });
@@ -235,18 +201,15 @@ export default async function handler(req, res) {
             messages.push({ role: "user", content: message });
         }
 
-        // ── CALL GROQ WITH AUTO-FALLBACK ──────────────────────
-        let aiReply = null;
-        let lastError = null;
-
-        // Pilih model: vision model untuk gambar, model terbaik untuk yang lain
-        const modelList = imageBase64
-            ? [GROQ_MODELS[0], GROQ_MODELS[1]] // vision models first
-            : GROQ_MODELS;
+        // ── CALL GROQ — AUTO FALLBACK ─────────────────────────
+        // Vision butuh model khusus, chat biasa pakai model berbeda
+        const modelList = imageBase64 ? GROQ_VISION_MODELS : GROQ_CHAT_MODELS;
+        let aiReply     = null;
+        let lastError   = null;
 
         for (const model of modelList) {
             try {
-                const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+                const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
                     method: "POST",
                     headers: {
                         "Authorization": `Bearer ${GROQ_API_KEY}`,
@@ -256,114 +219,102 @@ export default async function handler(req, res) {
                         model,
                         messages,
                         temperature: mode === 'code' ? 0.1 : 0.7,
-                        max_tokens: mode === 'code' ? 4096 : 2048,
-                        top_p: 0.9,
+                        max_tokens:  mode === 'code' ? 4096 : 2048,
                     })
                 });
 
-                if (!groqRes.ok) {
-                    const errBody = await groqRes.json().catch(() => ({}));
-                    throw new Error(errBody.error?.message || `HTTP ${groqRes.status}`);
+                if (!r.ok) {
+                    const errBody = await r.json().catch(() => ({}));
+                    const errMsg  = errBody?.error?.message || `HTTP ${r.status}`;
+                    console.error(`[Groq] ${model} => ${errMsg}`);
+                    throw new Error(errMsg);
                 }
 
-                const data = await groqRes.json();
-                aiReply = data.choices?.[0]?.message?.content;
-                if (aiReply) break; // success, stop trying
-
+                const data = await r.json();
+                const content = data.choices?.[0]?.message?.content?.trim();
+                if (content) {
+                    aiReply = content;
+                    break; // sukses
+                }
             } catch (e) {
                 lastError = e;
-                console.error(`Model ${model} failed:`, e.message);
-                continue; // try next model
+                continue; // coba model berikutnya
             }
         }
 
+        // Kalau semua model gagal, tampilkan error spesifik
         if (!aiReply) {
-            throw new Error(lastError?.message || "Semua model gagal merespons.");
+            const detail = lastError?.message || "Semua model Groq gagal merespons";
+            return res.status(500).json({
+                success: false,
+                reply: `**Groq API Error**\n\n\`\`\`\n${detail}\n\`\`\`\n\n**Cek:**\n- Model vision aktif di akun Groq Bos?\n- API key masih valid?\n- Rate limit?\n\n[Console Groq](https://console.groq.com)`
+            });
         }
 
-        // ── APPEND TIKTOK INFO ────────────────────────────────
+        // ── TIKTOK BLOCK ──────────────────────────────────────
         if (tiktokInfo) {
-            aiReply += buildTikTokBlock(tiktokInfo);
+            aiReply += [
+                "\n\n---",
+                "### 📥 TikTok Download Ready",
+                "",
+                `| | |`,
+                `|---|---|`,
+                `| 🎬 Judul | ${tiktokInfo.title} |`,
+                `| 👤 Creator | @${tiktokInfo.author} |`,
+                `| ⏱ Durasi | ${tiktokInfo.duration} |`,
+                "",
+                `**[⬇️ Download Video](${tiktokInfo.dlLink})**`,
+                "",
+                "> *Link langsung download .mp4 ke device Bos*"
+            ].join("\n");
         }
 
-        // ── RESPOND ───────────────────────────────────────────
+        // ── RESPONSE ──────────────────────────────────────────
         return res.status(200).json({
             success: true,
             reply: aiReply,
             ...(generatedImageUrl && { generatedImageUrl }),
             meta: {
-                model: GROQ_MODELS[0],
-                hasSearch: !!searchContext,
-                hasVision: !!imageBase64,
+                model:       modelList[0],
+                hasSearch:   !!searchContext,
+                hasVision:   !!imageBase64,
                 hasImageGen: !!generatedImageUrl,
-                hasTikTok: !!tiktokInfo,
-                timestamp: now.toISOString(),
+                hasTikTok:   !!tiktokInfo,
             }
         });
 
     } catch (error) {
-        console.error("API Error:", error);
+        console.error("Unhandled error:", error);
         return res.status(500).json({
             success: false,
-            reply: `**Server Error**\n\n\`${error.message}\`\n\nCek Vercel logs untuk detail, Bos.`
+            reply: `**Server Error**\n\n\`${error.message}\`\n\nCek Vercel Function Logs, Bos.`
         });
     }
 }
 
-// ─── BUILD DEFAULT SYSTEM PROMPT ─────────────────────────────
-function buildDefaultSystemPrompt({ dateString, timeString, searchContext, mode }) {
-    const modeInstructions = {
-        code:    "Kamu dalam MODE CODING. Tulis kode yang clean, production-ready, dan selalu sertakan penjelasan + best practices.",
-        analyze: "Kamu dalam MODE ANALISIS. Berikan analisis mendalam, struktural, dan actionable.",
-        write:   "Kamu dalam MODE MENULIS. Hasilkan konten yang engaging, original, dan berkualitas tinggi.",
-        image:   "Kamu dalam MODE IMAGE. Konfirmasi gambar yang sudah di-generate dan jelaskan detail hasilnya.",
-        chat:    "Kamu dalam MODE CHAT. Jawab dengan natural, cerdas, dan helpful.",
+// ─── SYSTEM PROMPT BUILDER ────────────────────────────────────
+function buildSystemPrompt({ dateString, timeString, searchContext, mode }) {
+    const modeGuide = {
+        code:    "MODE CODING: Tulis kode clean, production-ready. Wajib ada penjelasan + cara setup.",
+        analyze: "MODE ANALISIS: Berikan analisis mendalam, terstruktur, dan actionable.",
+        write:   "MODE MENULIS: Buat konten engaging, original, dan berkualitas tinggi.",
+        image:   "MODE IMAGE: Deskripsikan gambar hasil generate secara detail.",
+        chat:    "MODE CHAT: Jawab natural, cerdas, dan helpful.",
     };
 
-    return `Kamu adalah Riksan AI Supreme v5.0, asisten AI paling canggih yang dibuat oleh Riksan (CTO SawargiPay).
+    return `Kamu adalah Riksan AI Supreme v5.1, asisten AI canggih buatan Riksan (CTO SawargiPay).
 
-📅 WAKTU SEKARANG: ${dateString}, Pukul ${timeString} WIB.
+WAKTU SEKARANG: ${dateString}, pukul ${timeString} WIB.
 
-🧠 KEMAMPUAN KAMU:
-- Master coding: JavaScript, TypeScript, Python, PHP, Go, Rust, SQL, dan semua bahasa populer
-- Analisis gambar dengan detail tinggi (computer vision)
-- Generate gambar dengan Stability AI & DALL-E
-- Akses web search real-time via Serper API  
-- Download video TikTok otomatis
-- Matematika & LaTeX rendering
-- Analisis data & business intelligence
-- Nulis konten: artikel, copywriting, email, script
+KEAHLIAN: Full-stack dev (JS/TS/Python/PHP/Go/Rust), computer vision, image generation, web search real-time, data analysis, content writing, matematika.
 
-📌 ATURAN RESPONS:
-1. Bahasa Indonesia kecuali diminta lain
-2. Panggil user "Bos"
-3. Format Markdown yang rapi dengan emoji secukupnya
-4. JANGAN bilang "tidak tahu tanggal" atau "tidak bisa search" — kamu bisa
-5. Jawaban coding wajib lengkap: kode + penjelasan + cara pakai
-6. Kalau ada konteks pencarian, gunakan sebagai referensi fakta terkini
+ATURAN:
+- Bahasa Indonesia kecuali diminta lain
+- Panggil user "Bos"
+- Format Markdown rapi, emoji secukupnya
+- JANGAN bilang tidak tahu waktu/tanggal — kamu tahu
+- Kalau ada hasil web search, gunakan sebagai referensi fakta
 
-${modeInstructions[mode] || modeInstructions.chat}
-
-${searchContext ? `🔍 KONTEKS WEB SEARCH TERKINI:\n${searchContext}` : ""}`.trim();
-}
-
-// ─── BUILD TIKTOK RESPONSE BLOCK ─────────────────────────────
-function buildTikTokBlock(info) {
-    return `
-
----
-### 📥 TikTok Download Ready
-
-| Info | Detail |
-|------|--------|
-| 🎬 Judul | ${info.title} |
-| 👤 Creator | @${info.author} |
-| ⏱ Durasi | ${info.duration} |
-
-${info.dlNoWm
-    ? `**[⬇️ Download Tanpa Watermark](${info.dlNoWm})**`
-    : `**[⬇️ Download Video](${info.dlLink})**`
-}
-
-> *Link langsung download .mp4 ke device Bos*`;
+${modeGuide[mode] || modeGuide.chat}
+${searchContext ? `\nHASIL WEB SEARCH:\n${searchContext}` : ""}`.trim();
 }
