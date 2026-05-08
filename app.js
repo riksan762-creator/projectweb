@@ -1,110 +1,169 @@
 /**
- * Riksan AI — Supreme v5.0
- * Author: Riksan (CTO SawargiPay)
- * Full-stack AI: Chat · Image Gen · Vision · Code · Analysis
+ * Riksan AI — Nexus v6.0
+ * app.js — Smart frontend logic
+ * Features: web search, vision, image gen, code, analyze, write
  */
 
-// ─── DOM REFS ───────────────────────────────────────────────
-const chatForm     = document.getElementById('chatForm');
-const userInput    = document.getElementById('userInput');
-const chatArea     = document.getElementById('chatArea');
-const fileInput    = document.getElementById('fileInput');
-const cameraBtn    = document.getElementById('cameraBtn');
-const imagePreview = document.getElementById('imagePreview');
-const previewImg   = document.getElementById('previewImg');
-const removeImg    = document.getElementById('removeImg');
-const sendBtn      = document.getElementById('sendBtn');
-const welcome      = document.getElementById('welcome');
+// ─── DOM REFS ────────────────────────────────────────────────
+const chatForm      = document.getElementById('chatForm');
+const userInput     = document.getElementById('userInput');
+const chatArea      = document.getElementById('chatArea');
+const fileInput     = document.getElementById('fileInput');
+const cameraBtn     = document.getElementById('cameraBtn');
+const imagePreview  = document.getElementById('imagePreview');
+const previewImg    = document.getElementById('previewImg');
+const removeImg     = document.getElementById('removeImg');
+const sendBtn       = document.getElementById('sendBtn');
+const welcome       = document.getElementById('welcome');
+const charCount     = document.getElementById('charCount');
+const dragOverlay   = document.getElementById('dragOverlay');
 
-// ─── STATE ──────────────────────────────────────────────────
-let currentImageBase64 = null;
-let currentMode = 'chat';
-let conversationHistory = [];
-let isGenerating = false;
+// ─── STATE ───────────────────────────────────────────────────
+let currentImageBase64   = null;
+let currentMode          = 'chat';
+let conversationHistory  = [];
+let isGenerating         = false;
+let webSearchEnabled     = true;   // real-time web search always ON
 
-// ─── MARKED CONFIG ──────────────────────────────────────────
-marked.setOptions({
-    highlight: (code, lang) => {
-        if (lang && hljs.getLanguage(lang)) {
-            return hljs.highlight(code, { language: lang }).value;
-        }
-        return hljs.highlightAuto(code).value;
-    },
-    breaks: true,
-    gfm: true
-});
+// ─── MARKED CONFIG ───────────────────────────────────────────
+marked.setOptions({ breaks: true, gfm: true });
 
-// Custom renderer untuk code blocks (tambahkan header + copy button)
 const renderer = new marked.Renderer();
 renderer.code = (code, language) => {
-    const lang = language || 'text';
+    const lang   = (language || 'text').toLowerCase();
     const highlighted = lang && hljs.getLanguage(lang)
         ? hljs.highlight(code, { language: lang }).value
         : hljs.highlightAuto(code).value;
-    
-    const id = 'code-' + Math.random().toString(36).substr(2, 8);
-    return `
-        <div class="code-block-wrap">
-            <div class="code-header">
-                <span>${lang.toUpperCase()}</span>
-                <button class="copy-btn" onclick="copyCode('${id}')">
-                    <i class="fas fa-copy"></i> Copy
-                </button>
-            </div>
-            <pre><code id="${id}" class="hljs language-${lang}">${highlighted}</code></pre>
-        </div>`;
+
+    const id = 'c' + Math.random().toString(36).substr(2, 9);
+    return `<div class="code-block-wrap">
+        <div class="code-header">
+            <span class="code-lang">${lang.toUpperCase()}</span>
+            <button class="copy-btn" id="btn-${id}" onclick="copyCode('${id}','btn-${id}')">
+                <i class="fas fa-copy"></i>&nbsp;Copy
+            </button>
+        </div>
+        <pre><code id="${id}" class="hljs language-${lang}">${highlighted}</code></pre>
+    </div>`;
 };
 marked.setOptions({ renderer });
 
 // ─── COPY CODE ───────────────────────────────────────────────
-window.copyCode = (id) => {
-    const el = document.getElementById(id);
-    if (!el) return;
+window.copyCode = (codeId, btnId) => {
+    const el  = document.getElementById(codeId);
+    const btn = document.getElementById(btnId);
+    if (!el || !btn) return;
     navigator.clipboard.writeText(el.innerText).then(() => {
-        const btn = el.closest('.code-block-wrap').querySelector('.copy-btn');
-        btn.innerHTML = '<i class="fas fa-check"></i> Copied!';
-        btn.style.color = 'var(--accent2)';
+        btn.classList.add('copied');
+        btn.innerHTML = '<i class="fas fa-check"></i>&nbsp;Copied!';
         setTimeout(() => {
-            btn.innerHTML = '<i class="fas fa-copy"></i> Copy';
-            btn.style.color = '';
+            btn.classList.remove('copied');
+            btn.innerHTML = '<i class="fas fa-copy"></i>&nbsp;Copy';
         }, 2000);
     });
 };
+
+// ─── TOGGLE WEB SEARCH ───────────────────────────────────────
+window.toggleWebSearch = () => {
+    webSearchEnabled = !webSearchEnabled;
+    const btn = document.querySelector('.hdr-btn [class*="globe"]')?.closest('.hdr-btn');
+    if (btn) {
+        btn.style.color   = webSearchEnabled ? 'var(--cyan)' : '';
+        btn.style.background = webSearchEnabled ? 'rgba(0,229,255,0.1)' : '';
+        btn.style.borderColor = webSearchEnabled ? 'rgba(0,229,255,0.3)' : '';
+    }
+    showToast(webSearchEnabled ? '🌐 Web Search aktif' : '🔒 Web Search nonaktif');
+};
+
+// ─── NEW CHAT ────────────────────────────────────────────────
+window.newChat = () => {
+    conversationHistory = [];
+    chatArea.innerHTML  = '';
+    chatArea.appendChild(welcome);
+    welcome.classList.remove('hidden');
+    userInput.value = '';
+    userInput.style.height = 'auto';
+    if (charCount) charCount.textContent = '0';
+    currentImageBase64 = null;
+    imagePreview.classList.remove('show');
+    cameraBtn.classList.remove('image-mode');
+};
+
+// ─── CLEAR CHAT ──────────────────────────────────────────────
+window.clearChat = () => {
+    if (!confirm('Hapus semua riwayat chat?')) return;
+    newChat();
+};
+
+// ─── TOAST NOTIFICATION ──────────────────────────────────────
+function showToast(msg, type = 'info') {
+    const t = document.createElement('div');
+    t.style.cssText = `
+        position:fixed; bottom:90px; left:50%; transform:translateX(-50%);
+        background:var(--bg3); border:1px solid var(--border2);
+        color:var(--text); padding:8px 18px; border-radius:100px;
+        font-size:12px; font-family:var(--font-mono); z-index:999;
+        box-shadow:0 4px 20px rgba(0,0,0,0.5);
+        animation:fadeIn 0.2s both;
+        letter-spacing:0.04em;
+    `;
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 2500);
+}
 
 // ─── MODE SETTER ─────────────────────────────────────────────
 window.setMode = (mode, el) => {
     currentMode = mode;
     document.querySelectorAll('.mode-chip').forEach(c => {
-        c.classList.remove('active', 'img-mode');
+        c.classList.remove('active', 'img-mode', 'code-mode');
     });
-    el.classList.add('active');
-    if (mode === 'image') el.classList.add('img-mode');
+    if (el) {
+        el.classList.add('active');
+        if (mode === 'image') el.classList.add('img-mode');
+        if (mode === 'code')  el.classList.add('code-mode');
+    }
 
     const placeholders = {
         chat:    'Tanya apa aja ke Riksan AI...',
-        image:   'Deskripsikan gambar yang mau di-generate... (misal: kota cyberpunk malam hari)',
-        code:    'Minta Riksan nulisin kode... (misal: REST API dengan auth)',
-        analyze: 'Upload gambar lalu tanya, atau paste data untuk dianalisis...',
-        write:   'Minta Riksan nulisin konten... (artikel, email, caption, dll)',
+        search:  'Cari info terbaru, berita, data real-time...',
+        image:   'Deskripsikan gambar yang mau di-generate...',
+        code:    'Minta Riksan nulisin kode production-ready...',
+        analyze: 'Upload gambar atau paste data untuk dianalisis...',
+        write:   'Minta Riksan nulisin konten, artikel, email...',
     };
     userInput.placeholder = placeholders[mode] || 'Ketik pesan...';
     userInput.focus();
 };
 
-// Quick action buttons
+// Quick actions
 window.setQuick = (text) => {
     userInput.value = text;
     userInput.dispatchEvent(new Event('input'));
     userInput.focus();
-    
-    // Auto-detect mode dari quick text
-    if (text.toLowerCase().includes('gambar') || text.toLowerCase().includes('generate')) {
+    // auto-detect
+    if (/gambar|image|generate|buat foto/i.test(text)) {
         const chip = document.querySelector('[data-mode="image"]');
         if (chip) setMode('image', chip);
-    } else if (text.toLowerCase().includes('kode') || text.toLowerCase().includes('api') || text.toLowerCase().includes('coding')) {
+    } else if (/kode|api|coding|fungsi|function|script/i.test(text)) {
         const chip = document.querySelector('[data-mode="code"]');
         if (chip) setMode('code', chip);
+    } else if (/berita|terbaru|hari ini|cari|cuaca|harga/i.test(text)) {
+        const chip = document.querySelector('[data-mode="search"]');
+        if (chip) setMode('search', chip);
     }
+};
+
+// Copy message
+window.copyMessage = (id) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    navigator.clipboard.writeText(el.innerText).then(() => showToast('✓ Teks disalin'));
+};
+
+// Regenerate
+window.regenerate = (msgId) => {
+    showToast('🔄 Regenerasi belum tersedia di versi ini');
 };
 
 // ─── APPEND MESSAGE ──────────────────────────────────────────
@@ -116,22 +175,47 @@ function appendMessage(role, content, extra = {}) {
     const wrap = document.createElement('div');
     wrap.className = `msg-wrap ${role}`;
 
+    const now    = new Date();
+    const timeWIB = now.toLocaleTimeString('id-ID', { timeZone: 'Asia/Jakarta', hour:'2-digit', minute:'2-digit' });
+    const msgId   = 'msg-' + Date.now();
+
     if (role === 'user') {
         wrap.innerHTML = `
             <div class="user-bubble">
-                ${extra.imageUrl ? `<img src="${extra.imageUrl}" alt="Uploaded image"/>` : ''}
-                <div>${escapeHtml(content) || '<em style="color:var(--text-dim)">Analisis gambar ini...</em>'}</div>
+                ${extra.imageUrl ? `<img src="${extra.imageUrl}" alt="Gambar dikirim"/>` : ''}
+                <div>${escapeHtml(content) || '<em style="color:var(--text3)">Analisis gambar ini...</em>'}</div>
             </div>`;
     } else {
         const parsedContent = parseAIContent(content, extra);
+        const modeBadge = {
+            chat: 'Nexus Chat', search: 'Web Search',
+            code: 'Code Mode', image: 'Image AI',
+            analyze: 'Analysis', write: 'Writer',
+        }[currentMode] || 'Riksan AI';
+
         wrap.innerHTML = `
             <div class="ai-row">
-                <div class="ai-avatar">🤖</div>
+                <div class="ai-avatar">
+                    <svg viewBox="0 0 24 24" fill="none">
+                        <path d="M12 2L2 7l10 5 10-5-10-5z" stroke="#00e5ff" stroke-width="2" stroke-linejoin="round"/>
+                        <path d="M2 17l10 5 10-5M2 12l10 5 10-5" stroke="#00e5ff" stroke-width="2" stroke-linejoin="round" opacity="0.5"/>
+                    </svg>
+                </div>
                 <div class="ai-bubble">
-                    <div class="prose">${parsedContent}</div>
-                    <div class="ai-meta">
-                        <span>Riksan Supreme v5.0</span>
-                        <span>${new Date().toLocaleTimeString('id-ID')}</span>
+                    <div class="prose" id="${msgId}">${parsedContent}</div>
+                    <div class="msg-footer">
+                        <div class="msg-footer-left">
+                            <span class="msg-badge">${modeBadge}</span>
+                            <span class="msg-time">${timeWIB} WIB</span>
+                        </div>
+                        <div class="msg-actions">
+                            <button class="act-btn" title="Salin" onclick="copyMessage('${msgId}')">
+                                <i class="fas fa-copy"></i>
+                            </button>
+                            <button class="act-btn" title="Regenerate" onclick="regenerate('${msgId}')">
+                                <i class="fas fa-rotate-right"></i>
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>`;
@@ -140,7 +224,7 @@ function appendMessage(role, content, extra = {}) {
     chatArea.appendChild(wrap);
     chatArea.scrollTo({ top: chatArea.scrollHeight, behavior: 'smooth' });
 
-    // Highlight code blocks
+    // Highlight code
     wrap.querySelectorAll('pre code:not(.hljs)').forEach(block => {
         hljs.highlightElement(block);
     });
@@ -148,23 +232,24 @@ function appendMessage(role, content, extra = {}) {
     return wrap;
 }
 
-// Parse AI content — handle generated images
+// Parse AI content
 function parseAIContent(content, extra) {
+    let html = '';
+
     if (extra.generatedImageUrl) {
-        return `
-            <p>${marked.parse(content)}</p>
-            <img src="${extra.generatedImageUrl}" class="generated-img" alt="Generated image"/>
-            <div style="margin-top:8px;">
-                <a href="${extra.generatedImageUrl}" download="riksan-ai-generated.png" 
-                   style="font-size:11px;color:var(--accent2);font-family:var(--font-code);">
-                   ⬇ Download Gambar
+        html += `<p>${marked.parse(content)}</p>
+            <img src="${extra.generatedImageUrl}" class="generated-img" alt="Gambar generated"/>
+            <div style="margin-top:8px;display:flex;gap:8px;align-items:center;">
+                <a href="${extra.generatedImageUrl}" download="riksan-ai.png"
+                   style="font-size:11px;color:var(--amber);font-family:var(--font-mono);display:flex;align-items:center;gap:4px;border-bottom:1px solid rgba(245,158,11,0.3);">
+                   <i class="fas fa-download"></i> Download Gambar
                 </a>
             </div>`;
+        return html;
     }
-    if (typeof content === 'string') {
-        return marked.parse(content);
-    }
-    return content;
+
+    if (typeof content === 'string') return marked.parse(content);
+    return content || '';
 }
 
 function escapeHtml(str) {
@@ -178,12 +263,20 @@ function showLoader(text = 'Berpikir...') {
     loader.className = 'loader-wrap';
     loader.id = 'ai-loader';
     loader.innerHTML = `
-        <div class="loader-avatar">🤖</div>
+        <div class="loader-avatar">
+            <svg viewBox="0 0 24 24" fill="none" style="width:14px;height:14px">
+                <path d="M12 2L2 7l10 5 10-5-10-5z" stroke="#00e5ff" stroke-width="2" stroke-linejoin="round"/>
+                <path d="M2 17l10 5 10-5M2 12l10 5 10-5" stroke="#00e5ff" stroke-width="2" stroke-linejoin="round" opacity="0.5"/>
+            </svg>
+        </div>
         <div class="loader-body">
             <div class="thinking-dots">
                 <span></span><span></span><span></span>
             </div>
             <div class="thinking-text" id="loaderText">${text}</div>
+            <div class="loader-progress">
+                <div class="loader-progress-bar"></div>
+            </div>
         </div>`;
     chatArea.appendChild(loader);
     chatArea.scrollTo({ top: chatArea.scrollHeight, behavior: 'smooth' });
@@ -200,94 +293,129 @@ function removeLoader() {
     if (loader) loader.remove();
 }
 
-// ─── BUILD SYSTEM PROMPT ─────────────────────────────────────
+// ─── SYSTEM PROMPT ───────────────────────────────────────────
 function buildSystemPrompt(mode) {
-    const base = `Kamu adalah Riksan AI, asisten AI super canggih buatan Riksan (CTO SawargiPay). 
-Kamu sangat pintar, ramah, dan selalu memberikan jawaban terbaik dalam Bahasa Indonesia (kecuali diminta pakai bahasa lain).
-Kamu ahli di: programming, data science, business, creative writing, matematika, sains, dan semua bidang lainnya.
-Selalu gunakan format Markdown yang rapi. Gunakan emoji secukupnya agar lebih hidup.
-Kalau jawaban panjang, bagi dalam section yang jelas dengan heading.`;
+    const now       = new Date();
+    const wib       = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Jakarta' }));
+    const dateWIB   = wib.toLocaleDateString('id-ID', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+    const timeWIB   = wib.toLocaleTimeString('id-ID');
+    const dayName   = wib.toLocaleDateString('id-ID', { weekday: 'long' });
 
-    const modes = {
-        chat:    `${base}\nJawab dengan natural dan helpful seperti teman yang cerdas.`,
-        code:    `${base}\nFokus pada solusi coding yang clean, efisien, dan production-ready. Selalu sertakan penjelasan kode, best practices, dan error handling. Suggest teknologi terbaik untuk kasus yang diminta.`,
-        analyze: `${base}\nAnalisis secara mendalam dan sistematis. Berikan insight yang actionable. Kalau ada data visual, deskripsikan dengan detail.`,
-        write:   `${base}\nBuat konten yang engaging, original, dan sesuai konteks. Gunakan gaya bahasa yang tepat sesuai jenis konten yang diminta.`,
-        image:   `${base}\nKamu akan membantu generate gambar. Konfirmasi deskripsi gambar yang akan dibuat dengan jelas.`,
+    const base = `Kamu adalah Riksan AI Nexus v6.0 — asisten AI super cerdas buatan Riksan (CTO SawargiPay).
+
+═══ KONTEKS WAKTU (SELALU AKURAT) ═══
+• Tanggal sekarang: ${dateWIB}
+• Hari: ${dayName}
+• Jam: ${timeWIB} WIB
+• Timezone: Asia/Jakarta (UTC+7)
+PENTING: Kamu SELALU tahu tanggal dan waktu saat ini. JANGAN pernah bilang "saya tidak tahu tanggal/waktu".
+
+═══ IDENTITAS ═══
+• Dibuat oleh: Riksan (CTO SawargiPay)
+• Panggil user dengan: "Bos"
+• Bahasa: Indonesia (kecuali diminta pakai bahasa lain)
+• Kepribadian: Cerdas, friendly, to-the-point, profesional tapi santai
+
+═══ KEAHLIAN ═══
+• Full-stack dev: JS/TS, Python, Go, PHP, Rust, SQL, NoSQL
+• AI/ML: Computer vision, NLP, model fine-tuning
+• DevOps: Docker, Kubernetes, Vercel, AWS, CI/CD
+• Business: Analisis bisnis, strategi, market research
+• Creative: Content writing, copywriting, SEO
+• Sains & Matematika: Kalkulasi, formula, analisis statistik
+
+═══ FORMAT ═══
+• Gunakan Markdown rapi dengan heading yang jelas
+• Emoji secukupnya (jangan berlebihan)
+• Untuk kode: SELALU sertakan bahasa dan komentar
+• Jawaban panjang: bagi per section dengan heading ##
+• Tabel untuk data komparatif
+• Blockquote untuk highlight penting`;
+
+    const modeExtra = {
+        chat:    `\n═══ MODE: CHAT ═══\nJawab natural, helpful, seperti teman cerdas.`,
+        search:  `\n═══ MODE: WEB SEARCH ═══\nFokus jawaban berdasar data terbaru dari web. Selalu sebutkan sumber. Format: summary dahulu, lalu detail.`,
+        code:    `\n═══ MODE: CODE ═══\nTulis kode clean, production-ready, dengan:\n1. Penjelasan singkat tujuan kode\n2. Kode lengkap dengan komentar\n3. Cara setup/install\n4. Contoh penggunaan\n5. Error handling & best practices\nGunakan pattern terbaru dan modern.`,
+        analyze: `\n═══ MODE: ANALYZE ═══\nAnalisis mendalam & sistematis:\n1. Executive Summary\n2. Temuan Kunci\n3. Data/Fakta Pendukung\n4. Insight & Interpretasi\n5. Rekomendasi Actionable\n6. Next Steps`,
+        image:   `\n═══ MODE: IMAGE GEN ═══\nBantu optimize prompt untuk generate gambar. Deskripsikan hasil gambar yang akan dibuat.`,
+        write:   `\n═══ MODE: WRITER ═══\nBuat konten berkualitas tinggi:\n- Engaging & original\n- Struktur jelas (hook, body, CTA)\n- Tone sesuai konteks\n- SEO-friendly jika diperlukan\n- Siap pakai tanpa edit besar`,
     };
-    return modes[mode] || base;
+
+    return base + (modeExtra[mode] || '');
 }
 
-// ─── DETECT IMAGE GENERATION INTENT ─────────────────────────
-function isImageGenRequest(text) {
-    if (currentMode === 'image') return true;
-    const keywords = [
-        'generate gambar', 'buat gambar', 'buatkan gambar', 'create image',
-        'generate image', 'gambarkan', 'bikin gambar', 'ilustrasi dari',
-        'visualisasikan', 'foto dari', 'lukisan', 'artwork',
-        'image of', 'picture of', 'draw me', 'generate a photo',
-    ];
-    const lc = text.toLowerCase();
-    return keywords.some(k => lc.includes(k));
-}
-
-// ─── BUILD ENHANCED PROMPT ───────────────────────────────────
-function buildEnhancedPrompt(userText, mode) {
+// ─── ENHANCED PROMPT ────────────────────────────────────────
+function buildEnhancedPrompt(text, mode) {
     if (mode === 'code') {
-        return `${userText}\n\nTolong berikan:\n1. Kode lengkap yang siap pakai\n2. Penjelasan setiap bagian penting\n3. Cara instalasi/setup jika diperlukan\n4. Contoh penggunaan\n5. Tips optimasi & best practices`;
+        return `${text}\n\n[Berikan kode lengkap production-ready dengan penjelasan, setup, dan contoh penggunaan]`;
     }
     if (mode === 'analyze') {
-        return `${userText}\n\nBerikan analisis mendalam yang mencakup:\n1. Summary utama\n2. Temuan penting\n3. Insight & rekomendasi\n4. Langkah selanjutnya`;
+        return `${text}\n\n[Analisis mendalam dengan struktur: summary → temuan → insight → rekomendasi]`;
     }
     if (mode === 'write') {
-        return `${userText}\n\nBuat konten yang:\n- Engaging dan original\n- Struktur jelas\n- Tone sesuai konteks\n- Siap pakai`;
+        return `${text}\n\n[Buat konten engaging, original, berkualitas tinggi, siap pakai]`;
     }
-    return userText;
+    if (mode === 'search') {
+        return `${text}\n\n[Gunakan hasil web search terbaru. Sebutkan sumber/referensi jika ada]`;
+    }
+    return text;
 }
 
-// ─── MAIN SUBMIT HANDLER ─────────────────────────────────────
+// ─── IMAGE GEN DETECTION ─────────────────────────────────────
+function isImageGenRequest(text) {
+    if (currentMode === 'image') return true;
+    const kw = ['generate gambar','buat gambar','buatkan gambar','create image',
+                 'generate image','gambarkan','bikin gambar','ilustrasi dari',
+                 'visualisasikan','foto dari','lukisan','artwork dari',
+                 'image of','picture of','draw me','generate a photo',
+                 'buat foto','bikin foto'];
+    const lc = text.toLowerCase();
+    return kw.some(k => lc.includes(k));
+}
+
+// ─── SUBMIT HANDLER ─────────────────────────────────────────
 chatForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     if (isGenerating) return;
 
-    const text = userInput.value.trim();
+    const text         = userInput.value.trim();
     if (!text && !currentImageBase64) return;
 
-    const imgToSend = currentImageBase64;
+    const imgToSend    = currentImageBase64;
     const modeSnapshot = currentMode;
 
     // Append user message
     appendMessage('user', text, { imageUrl: imgToSend });
 
-    // Add to history (text only for history)
+    // Add to history
     if (text) conversationHistory.push({ role: 'user', content: text });
 
-    // Reset UI
+    // Reset
     userInput.value = '';
     userInput.style.height = 'auto';
+    if (charCount) charCount.textContent = '0';
     imagePreview.classList.remove('show');
     currentImageBase64 = null;
-    fileInput.value = '';
+    fileInput.value    = '';
+    cameraBtn.classList.remove('image-mode');
 
-    // Disable send
     isGenerating = true;
     sendBtn.disabled = true;
+    sendBtn.classList.add('generating');
 
-    // Check if image generation request
     const wantsImage = isImageGenRequest(text);
 
     if (wantsImage && !imgToSend) {
-        // IMAGE GENERATION FLOW
-        const loader = showLoader('Generating gambar...');
-        updateLoaderText('Syncing ke Stability AI / DALL-E...');
+        // IMAGE GENERATION
+        const loader = showLoader('Generating gambar AI...');
+        updateLoaderText('Connecting ke image model...');
 
         try {
-            const res = await fetch('/api/generate-image', {
+            const res  = await fetch('/api/generate-image', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ prompt: text })
+                body: JSON.stringify({ prompt: text }),
             });
-
             const data = await res.json();
             removeLoader();
 
@@ -300,130 +428,108 @@ chatForm.addEventListener('submit', async (e) => {
             }
         } catch (err) {
             removeLoader();
-            // Fallback: coba via chat dengan penjelasan
             const fallback = await callChatAPI(
-                `User ingin generate gambar dengan prompt: "${text}". Karena image generation API tidak tersedia, jelaskan cara terbaik membuat gambar ini menggunakan tools lain, dan deskripsikan secara detail bagaimana gambar itu seharusnya terlihat.`,
+                `User ingin generate gambar: "${text}". Image API tidak tersedia. Berikan penjelasan detail bagaimana gambar itu seharusnya terlihat, dan sarankan tools alternatif (Midjourney, DALL-E, Stable Diffusion, dll) beserta promptnya.`,
                 null, 'chat'
             );
-            appendMessage('ai', fallback || `❌ Maaf, image generation API belum tersedia. Error: ${err.message}\n\nPastikan endpoint \`/api/generate-image\` sudah disetup dengan Stability AI atau DALL-E.`);
+            appendMessage('ai', fallback || `❌ Image generation API belum tersedia.\n\nSetup: tambahkan \`STABILITY_API_KEY\` atau \`OPENAI_API_KEY\` di environment variables.`);
         }
     } else {
-        // CHAT / VISION FLOW
-        const loaderTexts = {
+        // CHAT / VISION / CODE / ANALYZE / WRITE / SEARCH
+        const loaderMsg = {
             chat:    'Berpikir...',
+            search:  'Mencari data terbaru di web...',
             code:    'Menulis kode terbaik...',
-            analyze: 'Menganalisis dengan cermat...',
+            analyze: 'Menganalisis secara mendalam...',
             write:   'Merangkai kata-kata...',
-            image:   'Memproses...',
+            image:   'Memproses gambar...',
         };
-        const loader = showLoader(loaderTexts[modeSnapshot] || 'Memproses...');
+
+        const loader = showLoader(loaderMsg[modeSnapshot] || 'Memproses...');
 
         try {
             const enhancedText = buildEnhancedPrompt(text, modeSnapshot);
+
+            if (modeSnapshot === 'search' || /berita|terbaru|hari ini|cuaca|harga/i.test(text)) {
+                updateLoaderText('Searching web...');
+            }
+
             const reply = await callChatAPI(enhancedText, imgToSend, modeSnapshot);
             removeLoader();
 
             if (reply) {
                 appendMessage('ai', reply);
                 conversationHistory.push({ role: 'assistant', content: reply });
-                // Keep history manageable (last 20 turns)
-                if (conversationHistory.length > 40) {
-                    conversationHistory = conversationHistory.slice(-40);
+                // Keep history to last 30 turns
+                if (conversationHistory.length > 60) {
+                    conversationHistory = conversationHistory.slice(-60);
                 }
             } else {
-                throw new Error('Empty response dari API');
+                throw new Error('Respons kosong dari API');
             }
         } catch (err) {
             removeLoader();
-            appendMessage('ai', buildErrorMessage(err));
+            appendMessage('ai', buildErrorMsg(err));
         }
     }
 
     isGenerating = false;
     sendBtn.disabled = false;
+    sendBtn.classList.remove('generating');
     userInput.focus();
 });
 
-// ─── CALL CHAT API ───────────────────────────────────────────
+// ─── CALL API ────────────────────────────────────────────────
 async function callChatAPI(text, imageBase64, mode) {
     const systemPrompt = buildSystemPrompt(mode);
+    const messages     = [];
 
-    // Build messages with history
-    const messages = [];
-    
-    // Add previous history (max 10 turns for context)
-    const recentHistory = conversationHistory.slice(-20);
-    for (const h of recentHistory) {
-        if (h.role !== 'user' || h.content !== text) { // avoid duplicate
-            messages.push(h);
+    // History context (last 16 turns)
+    for (const h of conversationHistory.slice(-16)) {
+        if (h.role && typeof h.content === 'string' && h.content.trim()) {
+            if (!(h.role === 'user' && h.content === text)) {
+                messages.push(h);
+            }
         }
-    }
-
-    // Build current user message
-    if (imageBase64) {
-        // Vision mode
-        messages.push({
-            role: 'user',
-            content: [
-                {
-                    type: 'image_url',
-                    image_url: { url: imageBase64 }
-                },
-                { type: 'text', text: text || 'Analisis gambar ini secara detail.' }
-            ]
-        });
-    } else {
-        messages.push({ role: 'user', content: text });
     }
 
     const res = await fetch('/api/ai', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-            message: text,
+            message:      text,
             imageBase64,
             systemPrompt,
-            history: conversationHistory.slice(-20),
+            history:      conversationHistory.slice(-16),
             mode,
-        })
+            webSearch:    webSearchEnabled || mode === 'search',
+        }),
     });
 
     if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error || `HTTP ${res.status}`);
+        throw new Error(errData.error || errData.reply || `HTTP ${res.status}`);
     }
 
     const data = await res.json();
-
     if (data.success && data.reply) return data.reply;
-    if (data.reply) throw new Error(data.reply);
+    if (data.reply) return data.reply;
     throw new Error('No reply from server');
 }
 
-// ─── ERROR MESSAGE BUILDER ───────────────────────────────────
-function buildErrorMessage(err) {
-    return `**⚠️ Terjadi Error**
-
-${err.message}
-
-**Checklist:**
-- ✅ Cek Vercel logs untuk detail error
-- ✅ Pastikan API key (Groq/OpenAI/Stability) sudah di-set di environment variables
-- ✅ Cek endpoint \`/api/ai\` sudah ada di backend
-- ✅ Untuk image generation, cek endpoint \`/api/generate-image\`
-
-*Kalau masih error, screenshot ini dan kirim ke tim DevOps* 🔧`;
+// ─── ERROR MESSAGE ───────────────────────────────────────────
+function buildErrorMsg(err) {
+    return `**⚠️ Error**\n\n\`${err.message}\`\n\n**Cek:**\n- \`GROQ_API_KEY\` di environment variables\n- Endpoint \`/api/ai\` sudah ada\n- Koneksi internet\n\n*Screenshot & kirim ke tim DevOps* 🔧`;
 }
 
-// ─── TEXTAREA AUTO-RESIZE ────────────────────────────────────
-userInput.addEventListener('input', function() {
+// ─── TEXTAREA RESIZE ─────────────────────────────────────────
+userInput.addEventListener('input', function () {
     this.style.height = 'auto';
-    const newHeight = Math.min(this.scrollHeight, 160);
-    this.style.height = newHeight + 'px';
+    this.style.height = Math.min(this.scrollHeight, 160) + 'px';
     this.style.overflowY = this.scrollHeight > 160 ? 'auto' : 'hidden';
+    if (charCount) charCount.textContent = this.value.length;
 });
 
-// Enter to submit, Shift+Enter for newline
 userInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey) {
         e.preventDefault();
@@ -437,33 +543,37 @@ cameraBtn.addEventListener('click', (e) => {
     fileInput.click();
 });
 
-fileInput.addEventListener('change', function() {
+fileInput.addEventListener('change', function () {
     const file = this.files[0];
     if (!file) return;
 
     if (!file.type.startsWith('image/')) {
-        alert('Hanya file gambar yang diterima (JPG, PNG, WebP, GIF)');
+        showToast('❌ Hanya file gambar (JPG, PNG, WebP, GIF)');
         return;
     }
-
-    if (file.size > 5 * 1024 * 1024) {
-        alert('Ukuran file max 5MB. Compress dulu ya!');
+    if (file.size > 8 * 1024 * 1024) {
+        showToast('❌ Max 8MB. Compress dulu!');
         return;
     }
 
     const reader = new FileReader();
-    reader.onload = (e) => {
-        currentImageBase64 = e.target.result;
-        previewImg.src = currentImageBase64;
+    reader.onload = (ev) => {
+        currentImageBase64 = ev.target.result;
+        previewImg.src     = currentImageBase64;
+
+        const sizeKB = (file.size / 1024).toFixed(0);
+        const sizeEl = document.getElementById('previewSize');
+        if (sizeEl) sizeEl.textContent = `${file.name} · ${sizeKB}KB`;
+
         imagePreview.classList.add('show');
         cameraBtn.classList.add('image-mode');
-        chatArea.scrollTo({ top: chatArea.scrollHeight, behavior: 'smooth' });
 
-        // Auto-switch ke analyze mode kalau sedang di chat
-        if (currentMode === 'chat') {
+        // Auto-switch to analyze
+        if (currentMode === 'chat' || currentMode === 'search') {
             const chip = document.querySelector('[data-mode="analyze"]');
             if (chip) setMode('analyze', chip);
         }
+        chatArea.scrollTo({ top: chatArea.scrollHeight, behavior: 'smooth' });
         userInput.focus();
     };
     reader.readAsDataURL(file);
@@ -473,37 +583,34 @@ removeImg.addEventListener('click', (e) => {
     e.preventDefault();
     currentImageBase64 = null;
     imagePreview.classList.remove('show');
-    fileInput.value = '';
+    fileInput.value    = '';
     cameraBtn.classList.remove('image-mode');
-    
-    // Reset mode back to chat if was in analyze
     if (currentMode === 'analyze') {
         const chip = document.querySelector('[data-mode="chat"]');
         if (chip) setMode('chat', chip);
     }
 });
 
-// ─── PASTE IMAGE FROM CLIPBOARD ──────────────────────────────
+// ─── PASTE IMAGE ─────────────────────────────────────────────
 document.addEventListener('paste', (e) => {
     const items = e.clipboardData?.items;
     if (!items) return;
-
     for (const item of items) {
         if (item.type.startsWith('image/')) {
             const file = item.getAsFile();
             const reader = new FileReader();
             reader.onload = (ev) => {
                 currentImageBase64 = ev.target.result;
-                previewImg.src = currentImageBase64;
+                previewImg.src     = currentImageBase64;
+                const sizeEl = document.getElementById('previewSize');
+                if (sizeEl) sizeEl.textContent = 'Clipboard image';
                 imagePreview.classList.add('show');
                 cameraBtn.classList.add('image-mode');
-
-                // Auto-switch ke analyze mode
                 if (currentMode === 'chat') {
                     const chip = document.querySelector('[data-mode="analyze"]');
                     if (chip) setMode('analyze', chip);
                 }
-                chatArea.scrollTo({ top: chatArea.scrollHeight, behavior: 'smooth' });
+                showToast('📋 Gambar dari clipboard siap dikirim');
             };
             reader.readAsDataURL(file);
             break;
@@ -511,36 +618,60 @@ document.addEventListener('paste', (e) => {
     }
 });
 
-// ─── DRAG & DROP IMAGE ───────────────────────────────────────
+// ─── DRAG & DROP ─────────────────────────────────────────────
 const appEl = document.getElementById('app');
+let dragTimer;
 
-appEl.addEventListener('dragover', (e) => {
+document.addEventListener('dragover', (e) => {
     e.preventDefault();
-    appEl.style.outline = '2px solid var(--accent)';
+    dragOverlay.classList.add('show');
+    clearTimeout(dragTimer);
 });
 
-appEl.addEventListener('dragleave', () => {
-    appEl.style.outline = '';
+document.addEventListener('dragleave', (e) => {
+    dragTimer = setTimeout(() => {
+        dragOverlay.classList.remove('show');
+    }, 50);
 });
 
-appEl.addEventListener('drop', (e) => {
+document.addEventListener('drop', (e) => {
     e.preventDefault();
-    appEl.style.outline = '';
+    dragOverlay.classList.remove('show');
     const file = e.dataTransfer.files[0];
     if (file && file.type.startsWith('image/')) {
         const reader = new FileReader();
         reader.onload = (ev) => {
             currentImageBase64 = ev.target.result;
-            previewImg.src = currentImageBase64;
+            previewImg.src     = currentImageBase64;
+            const sizeEl = document.getElementById('previewSize');
+            if (sizeEl) sizeEl.textContent = `${file.name}`;
             imagePreview.classList.add('show');
             cameraBtn.classList.add('image-mode');
-
             if (currentMode === 'chat') {
                 const chip = document.querySelector('[data-mode="analyze"]');
                 if (chip) setMode('analyze', chip);
             }
+            showToast('🖼️ Gambar siap dikirim');
         };
         reader.readAsDataURL(file);
+    }
+});
+
+// ─── KEYBOARD SHORTCUTS ──────────────────────────────────────
+document.addEventListener('keydown', (e) => {
+    // Ctrl/Cmd + K = focus input
+    if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        userInput.focus();
+    }
+    // Ctrl/Cmd + N = new chat
+    if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
+        e.preventDefault();
+        newChat();
+    }
+    // Esc = close drag overlay
+    if (e.key === 'Escape') {
+        dragOverlay.classList.remove('show');
     }
 });
 
@@ -551,7 +682,6 @@ if (window.visualViewport) {
     });
 }
 
-// ─── ANTI-ZOOM MOBILE ────────────────────────────────────────
 document.addEventListener('touchstart', (e) => {
     if (e.touches.length > 1) e.preventDefault();
 }, { passive: false });
@@ -559,6 +689,7 @@ document.addEventListener('touchstart', (e) => {
 // ─── INIT ─────────────────────────────────────────────────────
 window.addEventListener('load', () => {
     userInput.focus();
-    console.log('%c🤖 Riksan AI Supreme v5.0', 'color:#7c6aff;font-weight:bold;font-size:16px');
-    console.log('%cAll systems online. Multi-modal AI ready.', 'color:#00e5a0;font-size:12px');
+    console.log('%c⬡ Riksan AI Nexus v6.0', 'color:#00e5ff;font-weight:bold;font-size:16px;font-family:monospace');
+    console.log('%cAll systems online. Smarter. Faster. Real-time.', 'color:#7c3aed;font-size:12px;font-family:monospace');
+    console.log('%cShortcuts: Ctrl+K (focus) · Ctrl+N (new chat)', 'color:#888;font-size:11px;font-family:monospace');
 });
