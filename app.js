@@ -1,7 +1,8 @@
 /**
- * Riksan AI — Nexus v6.0
- * app.js — Smart frontend logic
+ * Riksan AI — Nexus v6.1
+ * app.js — Smart frontend logic (enhanced AI intelligence)
  * Features: web search, vision, image gen, code, analyze, write
+ * Improvements: smarter system prompt, deep context, intent detection, memory
  */
 
 // ─── DOM REFS ────────────────────────────────────────────────
@@ -23,7 +24,13 @@ let currentImageBase64   = null;
 let currentMode          = 'chat';
 let conversationHistory  = [];
 let isGenerating         = false;
-let webSearchEnabled     = true;   // real-time web search always ON
+let webSearchEnabled     = true;
+let userProfile          = {
+    name: null,
+    preferredLanguage: 'id',
+    topicsDiscussed: [],
+    lastContext: null,
+};
 
 // ─── MARKED CONFIG ───────────────────────────────────────────
 marked.setOptions({ breaks: true, gfm: true });
@@ -68,7 +75,7 @@ window.toggleWebSearch = () => {
     webSearchEnabled = !webSearchEnabled;
     const btn = document.querySelector('.hdr-btn [class*="globe"]')?.closest('.hdr-btn');
     if (btn) {
-        btn.style.color   = webSearchEnabled ? 'var(--cyan)' : '';
+        btn.style.color      = webSearchEnabled ? 'var(--cyan)' : '';
         btn.style.background = webSearchEnabled ? 'rgba(0,229,255,0.1)' : '';
         btn.style.borderColor = webSearchEnabled ? 'rgba(0,229,255,0.3)' : '';
     }
@@ -78,6 +85,8 @@ window.toggleWebSearch = () => {
 // ─── NEW CHAT ────────────────────────────────────────────────
 window.newChat = () => {
     conversationHistory = [];
+    userProfile.topicsDiscussed = [];
+    userProfile.lastContext = null;
     chatArea.innerHTML  = '';
     chatArea.appendChild(welcome);
     welcome.classList.remove('hidden');
@@ -136,12 +145,10 @@ window.setMode = (mode, el) => {
     userInput.focus();
 };
 
-// Quick actions
 window.setQuick = (text) => {
     userInput.value = text;
     userInput.dispatchEvent(new Event('input'));
     userInput.focus();
-    // auto-detect
     if (/gambar|image|generate|buat foto/i.test(text)) {
         const chip = document.querySelector('[data-mode="image"]');
         if (chip) setMode('image', chip);
@@ -154,17 +161,66 @@ window.setQuick = (text) => {
     }
 };
 
-// Copy message
 window.copyMessage = (id) => {
     const el = document.getElementById(id);
     if (!el) return;
     navigator.clipboard.writeText(el.innerText).then(() => showToast('✓ Teks disalin'));
 };
 
-// Regenerate
 window.regenerate = (msgId) => {
     showToast('🔄 Regenerasi belum tersedia di versi ini');
 };
+
+// ─── USER PROFILE TRACKING ──────────────────────────────────
+function updateUserProfile(text) {
+    // Detect nama user
+    const namaMatch = text.match(/(?:nama (?:aku|saya|gue|gw)|panggil (?:aku|saya|gue|gw)|aku (?:adalah|namanya)|i(?:'m| am)) ([A-Z][a-z]+)/i);
+    if (namaMatch) userProfile.name = namaMatch[1];
+
+    // Track topik yang dibahas (max 10 topik terakhir)
+    const topics = detectTopics(text);
+    userProfile.topicsDiscussed = [...new Set([...topics, ...userProfile.topicsDiscussed])].slice(0, 10);
+
+    // Simpan last context
+    userProfile.lastContext = text.slice(0, 200);
+}
+
+function detectTopics(text) {
+    const topicMap = {
+        'programming':    /\b(code|kode|coding|javascript|python|php|typescript|react|node|api|backend|frontend|database|sql|docker|github)\b/i,
+        'business':       /\b(bisnis|startup|revenue|profit|investor|saham|modal|growth|marketing|brand|sales)\b/i,
+        'finance':        /\b(harga|kurs|crypto|bitcoin|saham|investasi|tabungan|pajak|fintech|payment|transfer)\b/i,
+        'tech_news':      /\b(ai|artificial intelligence|chatgpt|openai|google|apple|meta|microsoft|teknologi terbaru)\b/i,
+        'health':         /\b(kesehatan|diet|olahraga|dokter|penyakit|vitamin|medis|wellness)\b/i,
+        'creative':       /\b(desain|design|gambar|foto|video|musik|konten|artikel|copywriting|branding)\b/i,
+        'data_science':   /\b(data|analisis|statistik|machine learning|model|dataset|visualisasi|excel|pandas)\b/i,
+        'devops':         /\b(server|deploy|cloud|aws|vercel|kubernetes|nginx|ci\/cd|monitoring|hosting)\b/i,
+    };
+
+    return Object.entries(topicMap)
+        .filter(([, rx]) => rx.test(text))
+        .map(([topic]) => topic);
+}
+
+// ─── INTENT DETECTION ────────────────────────────────────────
+function detectIntent(text) {
+    const intents = {
+        explain:    /\b(jelaskan|explain|apa itu|what is|kenapa|why|bagaimana cara|how to|cara|maksudnya|artinya)\b/i,
+        compare:    /\b(bandingkan|compare|vs|versus|bedanya|perbedaan|mana yang lebih|which is better)\b/i,
+        list:       /\b(sebutkan|list|kasih|berikan|contoh|rekomendasikan|apa saja|macam-macam)\b/i,
+        debug:      /\b(error|bug|masalah|problem|tidak bisa|gagal|failed|fix|perbaiki|kenapa tidak|why not working)\b/i,
+        create:     /\b(buat|buatkan|create|tulis|write|generate|bikin|design|rancang|develop)\b/i,
+        optimize:   /\b(optimize|optimasi|improve|tingkatkan|lebih cepat|faster|lebih baik|efisien)\b/i,
+        summarize:  /\b(ringkas|summarize|summary|singkat|tldr|tl;dr|intinya|poin utama)\b/i,
+        translate:  /\b(terjemahkan|translate|alih bahasa|in english|dalam bahasa)\b/i,
+        calculate:  /\b(hitung|calculate|berapa|total|hasil|nilai|konversi|convert)\b/i,
+        roleplay:   /\b(pura-pura|pretend|roleplai|jadilah|act as|berperan sebagai|simulasi)\b/i,
+    };
+
+    return Object.entries(intents)
+        .filter(([, rx]) => rx.test(text))
+        .map(([intent]) => intent);
+}
 
 // ─── APPEND MESSAGE ──────────────────────────────────────────
 function appendMessage(role, content, extra = {}) {
@@ -224,7 +280,6 @@ function appendMessage(role, content, extra = {}) {
     chatArea.appendChild(wrap);
     chatArea.scrollTo({ top: chatArea.scrollHeight, behavior: 'smooth' });
 
-    // Highlight code
     wrap.querySelectorAll('pre code:not(.hljs)').forEach(block => {
         hljs.highlightElement(block);
     });
@@ -232,7 +287,6 @@ function appendMessage(role, content, extra = {}) {
     return wrap;
 }
 
-// Parse AI content
 function parseAIContent(content, extra) {
     let html = '';
 
@@ -293,72 +347,232 @@ function removeLoader() {
     if (loader) loader.remove();
 }
 
-// ─── SYSTEM PROMPT ───────────────────────────────────────────
-function buildSystemPrompt(mode) {
-    const now       = new Date();
-    const wib       = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Jakarta' }));
-    const dateWIB   = wib.toLocaleDateString('id-ID', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
-    const timeWIB   = wib.toLocaleTimeString('id-ID');
-    const dayName   = wib.toLocaleDateString('id-ID', { weekday: 'long' });
+// ─── CONVERSATION SUMMARY ────────────────────────────────────
+// Summarize older history so AI tetap paham konteks panjang
+function buildConversationContext() {
+    if (conversationHistory.length === 0) return '';
 
-    const base = `Kamu adalah Riksan AI Nexus v6.0 — asisten AI super cerdas buatan Riksan (CTO SawargiPay).
+    // Ambil topik yang sudah dibahas
+    const topics = userProfile.topicsDiscussed;
+    const turnCount = Math.floor(conversationHistory.length / 2);
 
-═══ KONTEKS WAKTU (SELALU AKURAT) ═══
-• Tanggal sekarang: ${dateWIB}
-• Hari: ${dayName}
-• Jam: ${timeWIB} WIB
-• Timezone: Asia/Jakarta (UTC+7)
-PENTING: Kamu SELALU tahu tanggal dan waktu saat ini. JANGAN pernah bilang "saya tidak tahu tanggal/waktu".
+    if (turnCount === 0) return '';
 
-═══ IDENTITAS ═══
-• Dibuat oleh: Riksan (CTO SawargiPay)
-• Panggil user dengan: "Bos"
-• Bahasa: Indonesia (kecuali diminta pakai bahasa lain)
-• Kepribadian: Cerdas, friendly, to-the-point, profesional tapi santai
+    let ctx = `\n═══ KONTEKS PERCAKAPAN ═══\n`;
+    ctx += `• Sudah berlangsung ${turnCount} giliran tanya-jawab\n`;
+    if (topics.length > 0) ctx += `• Topik yang sudah dibahas: ${topics.join(', ')}\n`;
+    if (userProfile.name) ctx += `• Nama user: ${userProfile.name}\n`;
+    if (userProfile.lastContext) ctx += `• Pesan terakhir user: "${userProfile.lastContext.slice(0, 100)}..."\n`;
 
-═══ KEAHLIAN ═══
-• Full-stack dev: JS/TS, Python, Go, PHP, Rust, SQL, NoSQL
-• AI/ML: Computer vision, NLP, model fine-tuning
-• DevOps: Docker, Kubernetes, Vercel, AWS, CI/CD
-• Business: Analisis bisnis, strategi, market research
-• Creative: Content writing, copywriting, SEO
-• Sains & Matematika: Kalkulasi, formula, analisis statistik
-
-═══ FORMAT ═══
-• Gunakan Markdown rapi dengan heading yang jelas
-• Emoji secukupnya (jangan berlebihan)
-• Untuk kode: SELALU sertakan bahasa dan komentar
-• Jawaban panjang: bagi per section dengan heading ##
-• Tabel untuk data komparatif
-• Blockquote untuk highlight penting`;
-
-    const modeExtra = {
-        chat:    `\n═══ MODE: CHAT ═══\nJawab natural, helpful, seperti teman cerdas.`,
-        search:  `\n═══ MODE: WEB SEARCH ═══\nFokus jawaban berdasar data terbaru dari web. Selalu sebutkan sumber. Format: summary dahulu, lalu detail.`,
-        code:    `\n═══ MODE: CODE ═══\nTulis kode clean, production-ready, dengan:\n1. Penjelasan singkat tujuan kode\n2. Kode lengkap dengan komentar\n3. Cara setup/install\n4. Contoh penggunaan\n5. Error handling & best practices\nGunakan pattern terbaru dan modern.`,
-        analyze: `\n═══ MODE: ANALYZE ═══\nAnalisis mendalam & sistematis:\n1. Executive Summary\n2. Temuan Kunci\n3. Data/Fakta Pendukung\n4. Insight & Interpretasi\n5. Rekomendasi Actionable\n6. Next Steps`,
-        image:   `\n═══ MODE: IMAGE GEN ═══\nBantu optimize prompt untuk generate gambar. Deskripsikan hasil gambar yang akan dibuat.`,
-        write:   `\n═══ MODE: WRITER ═══\nBuat konten berkualitas tinggi:\n- Engaging & original\n- Struktur jelas (hook, body, CTA)\n- Tone sesuai konteks\n- SEO-friendly jika diperlukan\n- Siap pakai tanpa edit besar`,
-    };
-
-    return base + (modeExtra[mode] || '');
+    return ctx;
 }
 
-// ─── ENHANCED PROMPT ────────────────────────────────────────
+// ─── SYSTEM PROMPT (UPGRADED) ────────────────────────────────
+function buildSystemPrompt(mode, userText = '') {
+    const now     = new Date();
+    const wib     = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Jakarta' }));
+    const dateWIB = wib.toLocaleDateString('id-ID', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+    const timeWIB = wib.toLocaleTimeString('id-ID');
+    const dayName = wib.toLocaleDateString('id-ID', { weekday: 'long' });
+
+    const intents = detectIntent(userText);
+    const topics  = detectTopics(userText);
+    const ctxSummary = buildConversationContext();
+    const userName = userProfile.name ? userProfile.name : 'Bos';
+
+    // ── CORE IDENTITY ──
+    const base = `Kamu adalah Riksan AI Nexus v6.1 — AI asisten paling canggih, cerdas, dan serba tahu yang dibuat oleh Riksan (CTO SawargiPay). Kamu bukan hanya chatbot biasa — kamu adalah AI yang benar-benar paham konteks, nalar dengan dalam, dan selalu memberikan jawaban yang tepat sasaran.
+
+═══ WAKTU & TANGGAL (AKURAT) ═══
+• Sekarang: ${dateWIB}, ${timeWIB} WIB
+• Hari: ${dayName}
+• Timezone: Asia/Jakarta (UTC+7)
+KRUSIAL: Kamu SELALU tahu tanggal dan waktu saat ini secara presisi. JANGAN pernah bilang "saya tidak tahu tanggal/waktu".
+
+═══ IDENTITAS & KEPRIBADIAN ═══
+• Dibuat oleh: Riksan (CTO SawargiPay)
+• Panggil user dengan: "${userName}"
+• Bahasa utama: Indonesia yang natural dan cerdas (bukan kaku seperti terjemahan mesin)
+• Kepribadian: Seperti genius jenius yang juga asik diajak ngobrol. Cerdas tapi tidak sombong. To-the-point tapi tidak pelit penjelasan. Bisa bercanda tapi tahu kapan harus serius.
+• JANGAN pernah terdengar robotic. Gunakan bahasa yang hidup, ekspresif, dan kontekstual.
+• Kamu BOLEH punya opini dan perspektif sendiri — jangan selalu netral kalau ditanya pendapat.
+
+═══ CARA BERPIKIR (CHAIN OF THOUGHT) ═══
+Sebelum menjawab, kamu secara internal:
+1. Pahami INTENT sebenarnya dari user (bukan hanya literal kata-katanya)
+2. Identifikasi apakah ada konteks dari percakapan sebelumnya yang relevan
+3. Tentukan kedalaman jawaban yang tepat (simple question = simple answer, complex = structured)
+4. Pilih format terbaik: paragraf natural, list, tabel, code block, atau kombinasi
+5. Pastikan jawaban ACTIONABLE dan langsung berguna
+
+═══ KECERDASAN KONTEKSTUAL ═══
+• Ingat dan rujuk kembali hal-hal yang sudah dibahas di conversation ini
+• Jika user bertanya hal yang ambigu, tebak intent yang paling masuk akal berdasarkan konteks
+• Deteksi jika user butuh penjelasan lebih dalam vs. hanya butuh jawaban cepat
+• Jika user pakai bahasa teknis, respond dengan level teknis yang sama
+• Jika user pakai bahasa santai, respond santai pula — jangan kaku
+${ctxSummary}
+
+═══ PENGETAHUAN MENDALAM ═══
+Kamu punya expertise deep di:
+• **Tech & Engineering**: JavaScript/TypeScript (Node, React, Next.js, Vue), Python (Django, FastAPI, ML), Go, PHP (Laravel), Rust, SQL/NoSQL, Redis, Kafka, gRPC, REST, GraphQL, WebSocket
+• **AI & Machine Learning**: LLM fine-tuning, RAG, embeddings, computer vision, NLP, model evaluation, prompt engineering, LangChain, vector databases
+• **DevOps & Cloud**: Docker, Kubernetes, AWS (EC2, S3, Lambda, RDS, EKS), GCP, Vercel, Netlify, GitHub Actions, CI/CD, monitoring (Grafana, Prometheus), nginx, SSL
+• **Fintech & Payment**: Payment gateway, core banking logic, fraud detection, KYC/AML, SWIFT, QRIS, BI-FAST, SNAP, open banking API, risk management
+• **Bisnis & Strategi**: Business model canvas, unit economics, CAC/LTV, product-market fit, go-to-market strategy, fundraising, pitch deck, OKR, growth hacking
+• **Data & Analytics**: SQL advanced, Python (pandas, numpy, matplotlib), Power BI, Tableau, A/B testing, cohort analysis, funnel analysis, statistik inferensial
+• **Security**: OWASP Top 10, penetration testing concepts, JWT/OAuth2, encryption (AES, RSA), secure coding, GDPR/PDP compliance
+• **UI/UX & Design**: Figma, design systems, accessibility (WCAG), responsive design, micro-interactions, conversion optimization
+• **Konten & Marketing**: SEO teknikal dan on-page, copywriting persuasif, content strategy, social media growth, email marketing, iklan digital (Meta, Google Ads)
+• **Sains & Matematika**: Kalkulus, aljabar linear, statistik, fisika dasar, kimia dasar, formula-formula penting
+
+═══ PENGETAHUAN UMUM (SERBA TAHU) ═══
+• Sejarah dunia dan Indonesia — dari zaman kuno sampai modern
+• Geografi, budaya, dan info negara-negara di dunia
+• Tokoh-tokoh penting dunia (ilmuwan, pemimpin, pengusaha, seniman)
+• Hukum Indonesia (UU, peraturan OJK, BI, Kominfo, dll.)
+• Ekonomi makro dan mikro
+• Ilmu pengetahuan alam dan sosial
+• Sastra, filosofi, psikologi dasar
+• Pop culture, film, musik, olahraga
+• Resep masakan, tips kesehatan, dan lifestyle
+
+═══ FORMAT RESPONS ═══
+• **Pendek & padat** untuk pertanyaan simpel (1-3 kalimat cukup)
+• **Terstruktur dengan heading** untuk topik kompleks (gunakan ##, ###)
+• **List** hanya kalau memang berbentuk enumerasi, bukan untuk semua hal
+• **Tabel** untuk perbandingan data
+• **Code block** untuk semua kode — selalu sertakan bahasa dan komentar inline
+• **Bold** untuk poin paling penting
+• Emoji secukupnya — jangan lebay, jangan nol sama sekali
+• HINDARI basa-basi panjang di awal jawaban (langsung ke inti)
+• HINDARI kalimat "Tentunya!", "Tentu saja!", "Dengan senang hati!" — itu annoying
+
+═══ SIKAP & NILAI ═══
+• Jujur — kalau tidak tahu, bilang tidak tahu dan sarankan cara mencarinya
+• Berani berpendapat — kalau ditanya mana yang lebih baik, berikan rekomendasi konkret
+• Empati — pahami kondisi dan kebutuhan user sebelum menjawab
+• Proaktif — kalau ada info penting yang relevan tapi tidak ditanya, tetap share
+• Tidak judgemental — apapun pertanyaan user, jawab dengan respect`;
+
+    // ── MODE-SPECIFIC ENHANCEMENTS ──
+    const modeExtra = {
+        chat: `
+
+═══ MODE: NEXUS CHAT ═══
+Mode percakapan general. Jadilah teman cerdas yang bisa ngobrolin apa aja.
+• Untuk pertanyaan ringan: jawab natural, conversational, tidak perlu format panjang
+• Untuk pertanyaan serius/teknis: berikan jawaban mendalam dan terstruktur
+• Deteksi mood user — kalau user kayaknya frustrasi atau bingung, validasi dulu baru jelasin
+• Kalau ada ambiguitas, tebak intent yang paling masuk akal dan jawab berdasarkan itu (bisa tanya di akhir untuk konfirmasi)`,
+
+        search: `
+
+═══ MODE: WEB SEARCH ═══
+Mode pencarian informasi real-time. Fokus pada data terkini dan akurat.
+• Prioritaskan informasi terbaru dan relevan
+• Selalu sebutkan sumber jika tersedia
+• Format: **TL;DR** (ringkasan 1-2 kalimat) → **Detail** → **Sumber**
+• Bedakan antara fakta, opini, dan spekulasi
+• Untuk berita: berikan konteks dan implikasi, bukan hanya fakta mentah`,
+
+        code: `
+
+═══ MODE: CODE ENGINE ═══
+Mode penulisan kode production-grade. Standar tertinggi.
+• **Struktur wajib untuk setiap response kode:**
+  1. 📋 **Brief** — apa yang akan dibuat (1-2 kalimat)
+  2. 🛠 **Requirements** — dependencies/setup yang dibutuhkan
+  3. 💻 **Code** — kode lengkap, bersih, dengan komentar yang informatif
+  4. 🚀 **Usage** — cara pakai / contoh run
+  5. ⚠️ **Edge Cases & Error Handling** — hal-hal yang perlu diperhatikan
+  6. 💡 **Improvement Ideas** — optional, saran untuk upgrade lebih lanjut
+• Gunakan pattern terbaru (2024-2025), hindari deprecated API
+• Error handling harus explicit dan meaningful
+• Kode harus scalable — bukan hanya "works on my machine"
+• Kalau ada cara lebih efisien, tunjukkan dan jelaskan trade-offnya`,
+
+        analyze: `
+
+═══ MODE: DEEP ANALYSIS ═══
+Mode analisis mendalam dan sistematis.
+• **Struktur analisis:**
+  1. 🎯 **Executive Summary** — insight utama dalam 3 kalimat
+  2. 🔍 **Temuan Kunci** — fakta-fakta penting yang ditemukan
+  3. 📊 **Data & Evidence** — angka, fakta, dan bukti pendukung
+  4. 💡 **Insight & Interpretasi** — apa artinya semua ini
+  5. ⚠️ **Risiko & Limitasi** — apa yang perlu diwaspadai
+  6. ✅ **Rekomendasi** — aksi konkret yang bisa diambil
+  7. 🏃 **Next Steps** — prioritas tindakan selanjutnya
+• Gunakan data kuantitatif kalau tersedia
+• Bedakan antara korelasi dan kausalitas
+• Berikan perspektif yang mungkin tidak terpikir oleh user`,
+
+        image: `
+
+═══ MODE: IMAGE AI ═══
+Mode image generation assistant.
+• Bantu user crafting prompt yang optimal untuk generate gambar
+• Jelaskan elemen visual yang akan muncul
+• Sarankan style, lighting, composition, color palette
+• Berikan variasi prompt alternatif jika relevan`,
+
+        write: `
+
+═══ MODE: MASTER WRITER ═══
+Mode penulisan konten berkualitas tinggi.
+• Sebelum nulis, identifikasi: audience, tone, tujuan, platform
+• **Prinsip penulisan:**
+  - Hook yang kuat di awal (bikin orang mau baca terus)
+  - Struktur yang mengalir (jangan jumping)
+  - Kalimat aktif lebih sering dari pasif
+  - Konkret dan spesifik (hindari abstrak dan generik)
+  - CTA yang jelas di akhir kalau diperlukan
+• Sesuaikan gaya: formal untuk bisnis, casual untuk sosmed, persuasif untuk sales
+• SEO-friendly secara natural (keyword placement, heading hierarchy) jika untuk web
+• Konten harus ORIGINAL — bukan template generik yang bisa dibuat AI manapun`,
+    };
+
+    // ── INTENT-BASED ENHANCEMENTS ──
+    let intentBoost = '';
+    if (intents.includes('debug')) {
+        intentBoost += `\n\n[INTENT TERDETEKSI: Debugging]\nUser kemungkinan punya masalah teknis. Prioritaskan: (1) identifikasi root cause, (2) solusi konkret, (3) penjelasan kenapa error terjadi, (4) cara prevent di masa depan.`;
+    }
+    if (intents.includes('compare')) {
+        intentBoost += `\n\n[INTENT TERDETEKSI: Perbandingan]\nUser ingin membandingkan sesuatu. Gunakan tabel atau list paralel. Berikan rekomendasi akhir yang konkret berdasarkan use case yang paling masuk akal.`;
+    }
+    if (intents.includes('explain')) {
+        intentBoost += `\n\n[INTENT TERDETEKSI: Penjelasan]\nUser ingin memahami sesuatu. Mulai dari konsep dasar, gunakan analogi yang relatable, lalu masuk ke detail teknis. Cek apakah user sudah familiar dengan topik dari konteks pesan.`;
+    }
+    if (intents.includes('calculate')) {
+        intentBoost += `\n\n[INTENT TERDETEKSI: Kalkulasi]\nTampilkan langkah-langkah perhitungan dengan jelas. Verifikasi hasil. Tampilkan dalam format yang mudah dibaca.`;
+    }
+    if (intents.includes('create')) {
+        intentBoost += `\n\n[INTENT TERDETEKSI: Pembuatan]\nUser ingin membuat sesuatu. Berikan output yang langsung bisa dipakai, bukan hanya instruksi cara membuatnya.`;
+    }
+
+    // ── TOPIC-BASED CONTEXT ──
+    let topicBoost = '';
+    if (topics.includes('fintech') || topics.includes('finance')) {
+        topicBoost += `\n\n[KONTEKS TOPIK: Fintech/Finance]\nGunakan terminologi yang tepat. Sebut regulasi yang relevan (OJK, BI, dll.) jika perlu. Pertimbangkan aspek compliance dan risk.`;
+    }
+    if (topics.includes('programming')) {
+        topicBoost += `\n\n[KONTEKS TOPIK: Programming]\nTargetkan kode yang clean, maintainable, dan sesuai best practices industri 2025.`;
+    }
+
+    return base + (modeExtra[mode] || '') + intentBoost + topicBoost;
+}
+
+// ─── ENHANCED PROMPT ─────────────────────────────────────────
 function buildEnhancedPrompt(text, mode) {
-    if (mode === 'code') {
-        return `${text}\n\n[Berikan kode lengkap production-ready dengan penjelasan, setup, dan contoh penggunaan]`;
-    }
-    if (mode === 'analyze') {
-        return `${text}\n\n[Analisis mendalam dengan struktur: summary → temuan → insight → rekomendasi]`;
-    }
-    if (mode === 'write') {
-        return `${text}\n\n[Buat konten engaging, original, berkualitas tinggi, siap pakai]`;
-    }
-    if (mode === 'search') {
-        return `${text}\n\n[Gunakan hasil web search terbaru. Sebutkan sumber/referensi jika ada]`;
-    }
-    return text;
+    // Tambahkan context hint berdasarkan mode
+    const hints = {
+        code:    `\n\n---\n*[Berikan kode production-ready lengkap dengan penjelasan, setup, dan contoh. Gunakan best practices terbaru.]*`,
+        analyze: `\n\n---\n*[Analisis mendalam: summary → temuan kunci → insight → rekomendasi actionable]*`,
+        write:   `\n\n---\n*[Tulis konten berkualitas tinggi, engaging, siap pakai tanpa perlu edit besar]*`,
+        search:  `\n\n---\n*[Gunakan data terbaru dari web search. Sebutkan sumber jika tersedia. Bedakan fakta dari opini.]*`,
+    };
+    return text + (hints[mode] || '');
 }
 
 // ─── IMAGE GEN DETECTION ─────────────────────────────────────
@@ -373,6 +587,16 @@ function isImageGenRequest(text) {
     return kw.some(k => lc.includes(k));
 }
 
+// ─── ERROR MESSAGE ───────────────────────────────────────────
+function buildErrorMsg(err) {
+    const tips = [
+        'Pastikan API key sudah terkonfigurasi dengan benar.',
+        'Coba refresh halaman dan kirim ulang pesan.',
+        'Kalau masalah terus, hubungi Riksan untuk support.',
+    ];
+    return `❌ **Oops, ada masalah teknis**\n\n**Error:** ${err.message || 'Unknown error'}\n\n**Yang bisa dicoba:**\n${tips.map((t,i) => `${i+1}. ${t}`).join('\n')}`;
+}
+
 // ─── SUBMIT HANDLER ─────────────────────────────────────────
 chatForm.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -384,13 +608,14 @@ chatForm.addEventListener('submit', async (e) => {
     const imgToSend    = currentImageBase64;
     const modeSnapshot = currentMode;
 
-    // Append user message
+    // Update user profile for smarter context
+    if (text) updateUserProfile(text);
+
     appendMessage('user', text, { imageUrl: imgToSend });
 
-    // Add to history
     if (text) conversationHistory.push({ role: 'user', content: text });
 
-    // Reset
+    // Reset input
     userInput.value = '';
     userInput.style.height = 'auto';
     if (charCount) charCount.textContent = '0';
@@ -429,8 +654,8 @@ chatForm.addEventListener('submit', async (e) => {
         } catch (err) {
             removeLoader();
             const fallback = await callChatAPI(
-                `User ingin generate gambar: "${text}". Image API tidak tersedia. Berikan penjelasan detail bagaimana gambar itu seharusnya terlihat, dan sarankan tools alternatif (Midjourney, DALL-E, Stable Diffusion, dll) beserta promptnya.`,
-                null, 'chat'
+                `User ingin generate gambar: "${text}". Image API tidak tersedia. Deskripsikan secara vivid bagaimana gambar itu seharusnya terlihat (warna, komposisi, mood, style), dan sarankan tools terbaik (Midjourney, DALL-E 3, Stable Diffusion, Firefly) dengan contoh prompt yang optimal untuk masing-masing.`,
+                null, 'chat', text
             );
             appendMessage('ai', fallback || `❌ Image generation API belum tersedia.\n\nSetup: tambahkan \`STABILITY_API_KEY\` atau \`OPENAI_API_KEY\` di environment variables.`);
         }
@@ -447,22 +672,32 @@ chatForm.addEventListener('submit', async (e) => {
 
         const loader = showLoader(loaderMsg[modeSnapshot] || 'Memproses...');
 
+        // Smart loader text updates
+        if (modeSnapshot === 'search' || /berita|terbaru|hari ini|cuaca|harga|sekarang/i.test(text)) {
+            setTimeout(() => updateLoaderText('Searching web...'), 600);
+            setTimeout(() => updateLoaderText('Menyusun jawaban...'), 2000);
+        } else if (modeSnapshot === 'code') {
+            setTimeout(() => updateLoaderText('Merancang arsitektur kode...'), 800);
+            setTimeout(() => updateLoaderText('Menulis implementasi...'), 2500);
+        } else if (modeSnapshot === 'analyze') {
+            setTimeout(() => updateLoaderText('Mengidentifikasi pola...'), 600);
+            setTimeout(() => updateLoaderText('Menyusun insight...'), 2000);
+        } else {
+            setTimeout(() => updateLoaderText('Memproses konteks...'), 1000);
+            setTimeout(() => updateLoaderText('Hampir selesai...'), 3000);
+        }
+
         try {
             const enhancedText = buildEnhancedPrompt(text, modeSnapshot);
-
-            if (modeSnapshot === 'search' || /berita|terbaru|hari ini|cuaca|harga/i.test(text)) {
-                updateLoaderText('Searching web...');
-            }
-
-            const reply = await callChatAPI(enhancedText, imgToSend, modeSnapshot);
+            const reply = await callChatAPI(enhancedText, imgToSend, modeSnapshot, text);
             removeLoader();
 
             if (reply) {
                 appendMessage('ai', reply);
                 conversationHistory.push({ role: 'assistant', content: reply });
-                // Keep history to last 30 turns
-                if (conversationHistory.length > 60) {
-                    conversationHistory = conversationHistory.slice(-60);
+                // Keep history to last 40 turns (20 pairs) for deeper context
+                if (conversationHistory.length > 80) {
+                    conversationHistory = conversationHistory.slice(-80);
                 }
             } else {
                 throw new Error('Respons kosong dari API');
@@ -480,216 +715,65 @@ chatForm.addEventListener('submit', async (e) => {
 });
 
 // ─── CALL API ────────────────────────────────────────────────
-async function callChatAPI(text, imageBase64, mode) {
-    const systemPrompt = buildSystemPrompt(mode);
+async function callChatAPI(text, imageBase64, mode, rawText = '') {
+    // Pass rawText untuk intent/topic detection di system prompt
+    const systemPrompt = buildSystemPrompt(mode, rawText || text);
     const messages     = [];
 
-    // History context (last 16 turns)
-    for (const h of conversationHistory.slice(-16)) {
-        if (h.role && typeof h.content === 'string' && h.content.trim()) {
-            if (!(h.role === 'user' && h.content === text)) {
-                messages.push(h);
-            }
-        }
+    // Include conversation history (last 20 turns = 40 messages for deep context)
+    const historySlice = conversationHistory.slice(-40);
+    for (const h of historySlice) {
+        // Skip the last user message since we'll add it fresh
+        if (h === conversationHistory[conversationHistory.length - 1] && h.role === 'user') continue;
+        messages.push({ role: h.role, content: h.content });
     }
 
-    const res = await fetch('/api/ai', {
+    // Build current user message
+    if (imageBase64) {
+        messages.push({
+            role: 'user',
+            content: [
+                { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: imageBase64 } },
+                { type: 'text', text: text || 'Analisis gambar ini secara mendalam.' }
+            ]
+        });
+    } else {
+        messages.push({ role: 'user', content: text });
+    }
+
+    const useWebSearch = webSearchEnabled && (
+        mode === 'search' ||
+        /berita|terbaru|hari ini|cuaca|harga|kurs|trending|sekarang|update|terkini|breaking|live/i.test(text)
+    );
+
+    const requestBody = {
+        model: 'claude-opus-4-5',         // Use most capable model
+        max_tokens: mode === 'code' ? 4096 : mode === 'analyze' ? 3000 : 2048,
+        system: systemPrompt,
+        messages,
+        ...(useWebSearch && {
+            tools: [{ type: 'web_search_20250305', name: 'web_search' }]
+        })
+    };
+
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            message:      text,
-            imageBase64,
-            systemPrompt,
-            history:      conversationHistory.slice(-16),
-            mode,
-            webSearch:    webSearchEnabled || mode === 'search',
-        }),
+        body: JSON.stringify(requestBody),
     });
 
-    if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error || errData.reply || `HTTP ${res.status}`);
+    if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error?.message || `HTTP ${response.status}`);
     }
 
-    const data = await res.json();
-    if (data.success && data.reply) return data.reply;
-    if (data.reply) return data.reply;
-    throw new Error('No reply from server');
+    const data = await response.json();
+
+    // Handle tool use responses (web search results)
+    const fullResponse = (data.content || [])
+        .map(item => (item.type === 'text' ? item.text : ''))
+        .filter(Boolean)
+        .join('\n');
+
+    return fullResponse;
 }
-
-// ─── ERROR MESSAGE ───────────────────────────────────────────
-function buildErrorMsg(err) {
-    return `**⚠️ Error**\n\n\`${err.message}\`\n\n**Cek:**\n- \`GROQ_API_KEY\` di environment variables\n- Endpoint \`/api/ai\` sudah ada\n- Koneksi internet\n\n*Screenshot & kirim ke tim DevOps* 🔧`;
-}
-
-// ─── TEXTAREA RESIZE ─────────────────────────────────────────
-userInput.addEventListener('input', function () {
-    this.style.height = 'auto';
-    this.style.height = Math.min(this.scrollHeight, 160) + 'px';
-    this.style.overflowY = this.scrollHeight > 160 ? 'auto' : 'hidden';
-    if (charCount) charCount.textContent = this.value.length;
-});
-
-userInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey) {
-        e.preventDefault();
-        if (!isGenerating) chatForm.dispatchEvent(new Event('submit'));
-    }
-});
-
-// ─── IMAGE UPLOAD ─────────────────────────────────────────────
-cameraBtn.addEventListener('click', (e) => {
-    e.preventDefault();
-    fileInput.click();
-});
-
-fileInput.addEventListener('change', function () {
-    const file = this.files[0];
-    if (!file) return;
-
-    if (!file.type.startsWith('image/')) {
-        showToast('❌ Hanya file gambar (JPG, PNG, WebP, GIF)');
-        return;
-    }
-    if (file.size > 8 * 1024 * 1024) {
-        showToast('❌ Max 8MB. Compress dulu!');
-        return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-        currentImageBase64 = ev.target.result;
-        previewImg.src     = currentImageBase64;
-
-        const sizeKB = (file.size / 1024).toFixed(0);
-        const sizeEl = document.getElementById('previewSize');
-        if (sizeEl) sizeEl.textContent = `${file.name} · ${sizeKB}KB`;
-
-        imagePreview.classList.add('show');
-        cameraBtn.classList.add('image-mode');
-
-        // Auto-switch to analyze
-        if (currentMode === 'chat' || currentMode === 'search') {
-            const chip = document.querySelector('[data-mode="analyze"]');
-            if (chip) setMode('analyze', chip);
-        }
-        chatArea.scrollTo({ top: chatArea.scrollHeight, behavior: 'smooth' });
-        userInput.focus();
-    };
-    reader.readAsDataURL(file);
-});
-
-removeImg.addEventListener('click', (e) => {
-    e.preventDefault();
-    currentImageBase64 = null;
-    imagePreview.classList.remove('show');
-    fileInput.value    = '';
-    cameraBtn.classList.remove('image-mode');
-    if (currentMode === 'analyze') {
-        const chip = document.querySelector('[data-mode="chat"]');
-        if (chip) setMode('chat', chip);
-    }
-});
-
-// ─── PASTE IMAGE ─────────────────────────────────────────────
-document.addEventListener('paste', (e) => {
-    const items = e.clipboardData?.items;
-    if (!items) return;
-    for (const item of items) {
-        if (item.type.startsWith('image/')) {
-            const file = item.getAsFile();
-            const reader = new FileReader();
-            reader.onload = (ev) => {
-                currentImageBase64 = ev.target.result;
-                previewImg.src     = currentImageBase64;
-                const sizeEl = document.getElementById('previewSize');
-                if (sizeEl) sizeEl.textContent = 'Clipboard image';
-                imagePreview.classList.add('show');
-                cameraBtn.classList.add('image-mode');
-                if (currentMode === 'chat') {
-                    const chip = document.querySelector('[data-mode="analyze"]');
-                    if (chip) setMode('analyze', chip);
-                }
-                showToast('📋 Gambar dari clipboard siap dikirim');
-            };
-            reader.readAsDataURL(file);
-            break;
-        }
-    }
-});
-
-// ─── DRAG & DROP ─────────────────────────────────────────────
-const appEl = document.getElementById('app');
-let dragTimer;
-
-document.addEventListener('dragover', (e) => {
-    e.preventDefault();
-    dragOverlay.classList.add('show');
-    clearTimeout(dragTimer);
-});
-
-document.addEventListener('dragleave', (e) => {
-    dragTimer = setTimeout(() => {
-        dragOverlay.classList.remove('show');
-    }, 50);
-});
-
-document.addEventListener('drop', (e) => {
-    e.preventDefault();
-    dragOverlay.classList.remove('show');
-    const file = e.dataTransfer.files[0];
-    if (file && file.type.startsWith('image/')) {
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-            currentImageBase64 = ev.target.result;
-            previewImg.src     = currentImageBase64;
-            const sizeEl = document.getElementById('previewSize');
-            if (sizeEl) sizeEl.textContent = `${file.name}`;
-            imagePreview.classList.add('show');
-            cameraBtn.classList.add('image-mode');
-            if (currentMode === 'chat') {
-                const chip = document.querySelector('[data-mode="analyze"]');
-                if (chip) setMode('analyze', chip);
-            }
-            showToast('🖼️ Gambar siap dikirim');
-        };
-        reader.readAsDataURL(file);
-    }
-});
-
-// ─── KEYBOARD SHORTCUTS ──────────────────────────────────────
-document.addEventListener('keydown', (e) => {
-    // Ctrl/Cmd + K = focus input
-    if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
-        e.preventDefault();
-        userInput.focus();
-    }
-    // Ctrl/Cmd + N = new chat
-    if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
-        e.preventDefault();
-        newChat();
-    }
-    // Esc = close drag overlay
-    if (e.key === 'Escape') {
-        dragOverlay.classList.remove('show');
-    }
-});
-
-// ─── MOBILE VIEWPORT FIX ─────────────────────────────────────
-if (window.visualViewport) {
-    window.visualViewport.addEventListener('resize', () => {
-        chatArea.scrollTo({ top: chatArea.scrollHeight, behavior: 'auto' });
-    });
-}
-
-document.addEventListener('touchstart', (e) => {
-    if (e.touches.length > 1) e.preventDefault();
-}, { passive: false });
-
-// ─── INIT ─────────────────────────────────────────────────────
-window.addEventListener('load', () => {
-    userInput.focus();
-    console.log('%c⬡ Riksan AI Nexus v6.0', 'color:#00e5ff;font-weight:bold;font-size:16px;font-family:monospace');
-    console.log('%cAll systems online. Smarter. Faster. Real-time.', 'color:#7c3aed;font-size:12px;font-family:monospace');
-    console.log('%cShortcuts: Ctrl+K (focus) · Ctrl+N (new chat)', 'color:#888;font-size:11px;font-family:monospace');
-});
